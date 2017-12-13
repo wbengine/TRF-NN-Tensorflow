@@ -1,0 +1,4 @@
+
+models                     LL-train  LL-valid  LL-test  PPL-train  PPL-valid  PPL-test  WER    
+lstm_e200_h200x2           81.931    104.873   81.931   40.767     120.638    114.335   7.827  
+lstm_e200_h200x2_BNCE_SGD  132.561   141.072   132.561  403.085    630.907    639.448   7.435  
