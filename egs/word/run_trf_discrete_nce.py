@@ -21,7 +21,7 @@ def main(_):
     config = trf.Config(data)
     config.write_dbg = False
     config.max_epoch = 100
-    config.batch_size = 20
+    config.batch_size = 100
     config.noise_factor = 10
     config.noise_sampler = '2gram'
     config.lr_feat = lr.LearningRateEpochDelay(1e-3)
@@ -60,7 +60,7 @@ def main(_):
     session_config.gpu_options.allow_growth = True
     with sv.managed_session(config=session_config) as session:
         with session.as_default():
-            m.train(operation=trf.DefaultOps(m, *reader.word_nbest()))
+            m.train(operation=trf.DefaultOps(m, reader.word_nbest()))
 
 
 if __name__ == '__main__':

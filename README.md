@@ -16,17 +16,26 @@ Usage:
 cd tools
 ./install_srilm.sh
 ```
-4. Install the source code of Cython
+4. Install word2vec tools
+```
+cd tools/word2vec
+make
+```
+5. Install the source code of Cython
 ```
 cd tfcode/base
 python setup.py build_ext --inplace
 ```
 
 The experiments are in the folder egs/, which are originazed as follows:
-```
+
 - 'egs/word': the word morphology experiment
 - 'egs/ptb_wsj0': train on PTB and rescore on WSJ'92 
 - 'egs/ptb_chime4test': train on PTB and rescore on CHiME4 developing and test set
 - 'egs/CHiME4': perform CHiME4 challange
 - 'google1B': traing on Google 1-billion data set
 - 'hkust': experiment on hkust dataset
+
+Typical Experiments:
+
+- For "Language modeling with neural trans-dimensional random fields." ASRU, 2017, see 'egs/ptb_wsj0/run_trf_neural_sa.py'

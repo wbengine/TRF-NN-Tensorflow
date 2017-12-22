@@ -68,7 +68,7 @@ def main(_):
                 #
                 # m.test_sample()
 
-                m.train(operation=trf.DefaultOps(m, *reader.word_nbest()))
+                m.train(operation=trf.DefaultOps(m, reader.word_nbest()))
 
 if __name__ == '__main__':
     # test_net()

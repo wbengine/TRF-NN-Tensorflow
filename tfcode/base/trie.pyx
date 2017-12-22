@@ -77,7 +77,7 @@ cdef class Trie:
         cdef array.array keys = array.array('i', key_list)
         cdef bool bFound = False
         cdef cTrie *psub = self._c_trie.InsertTrie(keys.data.as_ints, len(key_list), bFound)
-        if not bFound:
+        if not bFound or not psub.IsDataLegal():
             psub.GetData()[0] = value
         return trie_warper(psub)
         

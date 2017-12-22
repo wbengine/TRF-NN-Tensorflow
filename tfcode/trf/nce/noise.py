@@ -40,10 +40,12 @@ def create_noise_sampler(name, config, data, device='/gpu:0', logdir=None):
         if ngram == 1:
             noise_sampler = NoiseSamplerUnigram(config, data)
         else:
-            if name.find('train') != -1:
+            if name.find('_train') != -1:
                 noise_sampler = NoiseSamplerNgramTrain(config, data, ngram)
-            elif name.find('nopi') != -1:
+            elif name.find('_nopi') != -1:
                 noise_sampler = NoiseSamplerNgramNoPi(config, data, ngram)
+            elif name.find('_samelen') != -1:
+                noise_sampler = NoiseSamplerNgramSameLen(config, data, ngram)
             else:
                 noise_sampler = NoiseSamplerNgram(config, data, ngram)
     elif name.find('lstm:') != -1:
@@ -79,7 +81,7 @@ class NoiseSampler(object):
                 sample_queue.put((seqs, logps))
         print('[NoiseSampler] sub_process terminate')
 
-    def get(self):
+    def get(self, data_seqs):
         # return self.config.noise_factor noise samples
         if self.is_parallel:
             return self.sample_queue.get()
@@ -148,13 +150,13 @@ class NoiseSamplerUnigram(NoiseSampler):
 
 
 class NoiseSamplerNgram(NoiseSampler):
-    def __init__(self, config, data, order, name=None):
+    def __init__(self, config, data, order, name=None, is_parallel=True):
         self.ngram = ngram.Ngram(order, data.get_vocab_size())
         self.ngram.create_from_corpus(data.datas[0])
 
         super().__init__(config, data,
                          name='%dgram' % order if name is None else name,
-                         is_parallel=True)
+                         is_parallel=is_parallel)
 
     def noise_generate(self, num):
         seqs = []
@@ -165,12 +167,12 @@ class NoiseSamplerNgram(NoiseSampler):
             assert rand_len <= self.config.max_len
 
             rand_s = [self.config.beg_token]
-            for _ in range(rand_len-1):
+            for _ in range(rand_len-2):
                 p = self.ngram.get_prob(rand_s)
                 w = p.sample()
                 rand_s.append(w)
 
-            # rand_s.append(self.config.end_token)
+            rand_s.append(self.config.end_token)
             seqs.append(rand_s)
         return seqs, self.noise_logps(seqs)
 
@@ -178,7 +180,7 @@ class NoiseSamplerNgram(NoiseSampler):
         logps = []
         for seq in seq_list:
             a = []
-            for i in range(1, len(seq)):
+            for i in range(1, len(seq)-1):
                 p = self.ngram.get_prob(seq[0:i])
                 a.append(p[seq[i]])
             logps.append(np.sum(np.log(a)) + np.log(self.config.pi_true[len(seq)]))
@@ -260,27 +262,19 @@ class NoiseSamplerNgramPy(NoiseSampler):
         return self.ngram.get_log_probs(seq_list)
 
 
-class NoiseSamplerNgramTrain(NoiseSamplerNgram):
+class NoiseSamplerNgramSameLen(NoiseSamplerNgram):
     def __init__(self, config, data, order):
-        super().__init__(config, data, order, name='%gram' % order + '_train')
+        super().__init__(config, data, order, name='%dgram_samelen' % order, is_parallel=False)
 
-        self.choice_prob = 1 / (1 + self.config.noise_factor)
-        self.data_prob = 1.0 / len(self.data.datas[0])
+    def get(self, data_seqs):
+        return self.noise_generate_same_len(data_seqs, self.config.pack_size // len(data_seqs))
 
-    def noise_generate(self, num):
+    def noise_generate_same_len(self, data_seqs, noise_factor):
         seqs = []
-        probs = []
-        while len(seqs) < num:
-            if np.random.rand() <= self.choice_prob:
-                # training set
-                seqs.append(self.data.datas[0][np.random.randint(len(self.data.datas[0]))])
-                probs.append(self.data_prob)
-            else:
-                rand_len = np.random.choice(self.config.max_len + 1, p=self.config.pi_true)
-                # rand_len = length
-                assert rand_len >= self.config.min_len
-                assert rand_len <= self.config.max_len
+        for data_seq in data_seqs:
+            rand_len = len(data_seq)
 
+            for _ in range(noise_factor):
                 rand_s = [self.config.beg_token]
                 for _ in range(rand_len-2):
                     p = self.ngram.get_prob(rand_s)
@@ -289,26 +283,38 @@ class NoiseSamplerNgramTrain(NoiseSamplerNgram):
 
                 rand_s.append(self.config.end_token)
                 seqs.append(rand_s)
-                probs.append(0)
+        return seqs, self.noise_logps(seqs)
 
-        logps = []
-        for data_prob, ngram_logp in zip(probs, super().noise_logps(seqs)):
-            if data_prob == 0:
-                logps.append(np.log(1-self.choice_prob) + ngram_logp)
-            else:
-                logps.append(
-                    np.logaddexp(np.log(self.choice_prob) + np.log(data_prob),
-                                 np.log(1-self.choice_prob) + ngram_logp)
-                             )
 
-        return seqs, np.array(logps)
+class NoiseSamplerNgramTrain(NoiseSamplerNgram):
+    def __init__(self, config, data, order):
+        super().__init__(config, data, order, name='%gram_train' % order, is_parallel=False)
 
-    def noise_logps(self, seq_list):
-        data_logp = np.log(1./self.data_prob)
-        ngram_logp = super().noise_logps(seq_list)
-        logps = np.logaddexp(np.log(self.choice_prob) + data_logp,
-                             np.log(1-self.choice_prob) + ngram_logp)
-        return logps
+        self.data = data
+        self.reserve_prob = 0.5
+        self.data_prob = 1.0 / len(self.data.datas[0])
+
+    def get(self, data_seqs):
+        return self.noise_generate_given_data(data_seqs,  self.config.pack_size // len(data_seqs))
+
+    def noise_generate_given_data(self, data_seqs, noise_factor):
+        seqs = []
+        for data_seq in data_seqs:
+            rand_len = len(data_seq)
+
+            for _ in range(noise_factor):
+                rand_s = [self.config.beg_token]
+                for i in range(1, rand_len-1):
+                    if np.random.uniform() < self.reserve_prob:
+                        w = data_seq[i]
+                    else:
+                        p = self.ngram.get_prob(rand_s)
+                        w = p.sample()
+                    rand_s.append(w)
+
+                rand_s.append(self.config.end_token)
+                seqs.append(rand_s)
+        return seqs, self.noise_logps(seqs)
 
 
 class NoiseSamplerLSTMEval(NoiseSampler):

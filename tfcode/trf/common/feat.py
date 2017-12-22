@@ -1,8 +1,10 @@
 import json
+import os
 import numpy as np
 import time
 
 from base import *
+from multiprocessing import Process, Manager, Queue, Value
 
 
 def write_value(f, value, name='value'):
@@ -19,7 +21,7 @@ def read_value(f):
     return json.loads(s[idx+1:])
 
 
-class Feats:
+class Feats(object):
     def __init__(self, type_dict):
         """
         create a collection of types of features
@@ -50,7 +52,21 @@ class Feats:
                 self.num = ftype.exact(seq, self.num)
 
         self.create_values_buf(self.num)
-        print('Load features {:,}'.format(self.num))
+        print('[{}.{}] Load features {:,}'.format(__name__, self.__class__.__name__, self.num))
+
+    def insert_single_feat(self, single_feat):
+        """
+        Insert a single feat into the package
+        Args:
+            single_feat: SingleFeat
+
+        Returns:
+
+        """
+        self.feat_list.append(single_feat)
+        self.num += single_feat.num
+        print('[%s.%s] recreate value buf = %d.' % (__name__, self.__class__.__name__, self.num))
+        self.create_values_buf(self.num)
 
     def save(self, f, value_buf=None):
         if value_buf is None:
@@ -145,6 +161,72 @@ class Feats:
         return np.array([self.seq_weight(seq) for seq in seq_list])
 
 
+class FastFeats(Feats):
+    def __init__(self, type_dict, sub_process_num=4):
+        super().__init__(type_dict)
+
+        self.sub_process_num = sub_process_num
+        self.task_queue = Queue(maxsize=10)
+        self.res_queue = Queue(maxsize=10)
+        self.sub_processes = [Process(target=self.sub_process, args=(self.task_queue, self.res_queue))
+                              for _ in range(self.sub_process_num)]
+
+    def __del__(self):
+        if self.sub_processes[0].is_alive():
+            self.release()
+
+    def start(self):
+        for p in self.sub_processes:
+            p.start()
+
+    def release(self):
+        for _ in range(self.sub_process_num):
+            self.task_queue.put((-1, []))
+
+        for p in self.sub_processes:
+            p.join()
+
+    def sub_process(self, task_queue, res_queue):
+        print('[FastFeat] sub-process %d, start' % os.getpid())
+        while True:
+            tsk = task_queue.get()  # tuple( id, seq )
+            if tsk[0] == -1:
+                break
+
+            a_list = [self.seq_find(x) for x in tsk[1]]
+            res_queue.put((tsk[0], a_list))  # tuple( id, list )
+
+        print('[FastFeat] sub-process %d, finished' % os.getpid())
+
+    def seq_list_find(self, seq_list):
+        if not self.sub_processes[0].is_alive():
+            self.start()
+
+        # add task
+        batch_size = int(np.ceil(len(seq_list) / self.sub_process_num))
+        tsk_num = 0
+        for batch_beg in range(0, len(seq_list), batch_size):
+            self.task_queue.put((tsk_num, seq_list[batch_beg: batch_beg + batch_size]))
+            tsk_num += 1
+
+        # collect results
+        res_dict = {}
+        for _ in range(tsk_num):
+            i, x = self.res_queue.get()
+            res_dict[i] = x
+
+        res = []
+        for i in range(tsk_num):
+            res += res_dict[i]
+
+        assert len(res) == len(seq_list)
+        return res
+
+    def seq_list_weight(self, seq_list):
+        a_list = self.seq_list_find(seq_list)
+        return np.array([np.sum(self.values[a]) for a in a_list])
+
+
 class SingleFeat:
     def __init__(self, type=''):
         """
@@ -208,6 +290,28 @@ class SingleFeat:
             if sub.data == beg_id:  # add successfully
                 beg_id += 1
                 self.num += 1
+        return beg_id
+
+    def add_ngram(self, ngram_list, beg_id=0):
+        """
+        add a list of ngrams directly into the features
+        Args:
+            ngram_list: list of ngrams
+            beg_id: the begin id
+
+        Returns:
+            the final id
+        """
+        # f = open('temp.txt', 'wt')
+        for key in ngram_list:
+            if not key:
+                raise TypeError('[%s.%s] input an empty ngram key!' % (__name__, self.__class__.__name__))
+            sub = self.trie.setdefault(key, beg_id)
+            # f.write('{}  {}\n'.format(str(key), sub.data))
+            if sub.data == beg_id:  # add successfully
+                beg_id += 1
+                self.num += 1
+        # f.close()
         return beg_id
 
     def ngram_find(self, ngrams):
@@ -316,3 +420,16 @@ def separate_type(type_dict):
             ct_dict[key] = v
 
     return wt_dict, ct_dict
+
+
+def test_trie():
+    t = trie.trie()
+
+    sub = t.setdefault([1, 2], 0)
+    print(sub.data)
+    sub = t.setdefault([1], 1)
+    print(sub.data)
+
+
+if __name__ == '__main__':
+    test_trie()

@@ -1084,3 +1084,13 @@ def logaddexp(a, b, wa=None, wb=None):
         wb = 1
     m = np.maximum(a, b)
     return np.log(wa * np.exp(a-m) + wb * np.exp(b-m)) + m
+
+
+def split_to_char_ch(s):
+    """
+    input a chinese string, and return the char list
+    """
+    # split Chinese word to char, and preserve the English words
+    cs = re.split(r'([\u4e00-\u9fa5])', s)
+    cs = list(filter(None, cs))
+    return cs

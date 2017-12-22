@@ -130,7 +130,6 @@ class Config:
         self.order = 3
         self.discount = '-kndiscount'
         self.cutoff = [0, 0, 0]
-        self.res_file = None  # the result files used to write the results
 
     def __str__(self):
         return 'KN{}_{}'.format(self.order, ''.join([str(i) for i in self.cutoff]))
@@ -157,37 +156,39 @@ class Model:
             for i in range(2, self.data.get_vocab_size()):
                 f.write('{}\t{}\n'.format(i, self.data.word_list[i]))
 
-    def train(self):
+    def train(self, write_to_res=None):
         write_count = self.workdir + self.name + '.count'
         write_model = self.workdir + self.name + '.lm'
 
         if wb.exists(write_model):
             print('model exist, skip training')
-            return
+        else:
+            cutoff_cmd = ' '.join(['-gt{}min {}'.format(i+1, n) for i, n in enumerate(self.config.cutoff)])
 
-        cutoff_cmd = ' '.join(['-gt{}min {}'.format(i+1, n) for i, n in enumerate(self.config.cutoff)])
+            cmd = self.bindir + 'ngram-count '
+            cmd += ' -text {0}train.id -vocab {0}vocab'.format(self.workdir)
+            cmd += ' -order {} -write {} '.format(self.config.order, write_count)
+            cmd += cutoff_cmd + ' '
+            os.system(cmd)
 
-        cmd = self.bindir + 'ngram-count '
-        cmd += ' -text {0}train.id -vocab {0}vocab'.format(self.workdir)
-        cmd += ' -order {} -write {} '.format(self.config.order, write_count)
-        cmd += cutoff_cmd + ' '
-        os.system(cmd)
-
-        cmd = self.bindir + 'ngram-count '
-        cmd += ' -vocab {}vocab'.format(self.workdir)
-        cmd += ' -read {}'.format(write_count)
-        cmd += ' -order {} -lm {} '.format(self.config.order, write_model)
-        cmd += self.config.discount + ' -interpolate ' + cutoff_cmd
-        os.system(cmd)
+            cmd = self.bindir + 'ngram-count '
+            cmd += ' -vocab {}vocab'.format(self.workdir)
+            cmd += ' -read {}'.format(write_count)
+            cmd += ' -order {} -lm {} '.format(self.config.order, write_model)
+            cmd += self.config.discount + ' -interpolate ' + cutoff_cmd
+            os.system(cmd)
 
         # get ppl
-        if self.config.res_file is not None:
+        if write_to_res is not None:
+            if not isinstance(write_to_res, tuple):
+                raise TypeError('write_to_res should be a tuple like (res_file_name, model_name).')
+            print('compute ppl...')
             PPL = [0] * 3
             testno = [self.workdir + s + '.id' for s in ['train', 'valid', 'test']]
             for i in range(min(len(self.data.datas), len(testno))):
                 PPL[i] = self.ppl(testno[i], type='id')
-            res_file = wb.FRes(self.config.res_file)
-            res_file.AddPPL(str(self.config), PPL, testno)
+            res_file = wb.FRes(write_to_res[0])
+            res_file.AddPPL(write_to_res[1], PPL, testno)
 
     def ppl(self, fname, type='txt'):
         """

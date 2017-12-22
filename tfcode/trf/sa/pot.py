@@ -12,6 +12,7 @@ class BaseConfig(wb.Config):
         wb.Config.value_encoding_map[lr.LearningRate] = str
 
         self.type = type_name
+        self.L2_reg = 1e-6
 
     def __str__(self):
         return 'NonePotential'
@@ -23,12 +24,15 @@ class FeatConfig(BaseConfig):
 
         self.feat_type_file = None
         self.feat_cluster = None
-        self.var_gap = 1e-3
+
+        self.pre_compute_data_exp = True
+        self.pre_compute_data_var = False
+        self.var_gap = 1e-6
 
     def __str__(self):
         feat_name = os.path.split(self.feat_type_file)[-1]
         feat_name = os.path.splitext(feat_name)[0]
-        return 'feat{}'.format(feat_name)
+        return 'feat{}_L2reg{:.2e}'.format(feat_name, self.L2_reg)
 
 
 class NetConfig(BaseConfig, net.Config):
@@ -70,16 +74,21 @@ class FeatPhi(Base):
         self.data = data
         self.opt_method = opt_method
 
-        self.len_factor = self.config.pi_true / self.config.pi_0
+        if opt_method.lower() == 'adam':
+            self.config.pre_compute_data_var = False
+
+        # self.len_factor = self.config.pi_true / self.config.pi_0
 
         wftype, cftype = feat.separate_type(feat.read_feattype_file(self.config.feat_type_file))
-        self.wfeat = feat.Feats(wftype)
+        self.wfeat = feat.FastFeats(wftype)
         if self.config.feat_cluster is not None:
-            self.cfeat = feat.Feats(cftype)
+            self.cfeat = feat.FastFeats(cftype)
         else:
             self.cfeat = None
 
         self.update_op = None
+        self.data_exp = None
+        self.data_var = None
 
     def get_param_num(self):
         n = self.wfeat.num
@@ -87,6 +96,12 @@ class FeatPhi(Base):
             return n
 
         return n + self.cfeat.num
+
+    def get_params(self):
+        v = self.wfeat.values
+        if self.cfeat is not None:
+            v = np.concatenate([v, self.cfeat.values])
+        return v
 
     def get_value(self, seq_list):
         w1 = self.wfeat.seq_list_weight(seq_list)
@@ -97,11 +112,59 @@ class FeatPhi(Base):
         return np.array(w1) + np.array(w2)
 
     def feat_count(self, cur_feat, seq_list, seq_scalar):
+        """
+        compute sum_x d * f(x)
+        Args:
+            cur_feat:
+            seq_list:
+            seq_scalar:
+
+        Returns:
+
+        """
         buf = np.zeros_like(cur_feat.values)
-        for seq, d in zip(seq_list, seq_scalar):
-            for i in cur_feat.seq_find(seq):
+        a_list = cur_feat.seq_list_find(seq_list)
+        for a, d in zip(a_list, seq_scalar):
+            for i in a:
                 buf[i] += d
         return buf
+
+    def get_exp(self, seq_list, seq_scalar):
+        exp = self.feat_count(self.wfeat, seq_list, seq_scalar)
+        if self.cfeat is None:
+            return exp
+
+        exp2 = self.feat_count(self.cfeat, self.data.seqs_to_class(seq_list), seq_scalar)
+        return np.concatenate([exp, exp2])
+
+    def feat_count2(self, cur_feat, seq_list, seq_scalar):
+        """
+        compute Sum_x d * f(x)^2
+        Args:
+            cur_feat:
+            seq_list:
+            seq_scalar:
+
+        Returns:
+        """
+        buf = np.zeros_like(cur_feat.values)
+        a_list = cur_feat.seq_list_find(seq_list)
+        for a, d in zip(a_list, seq_scalar):
+            f_count = dict()
+            for i in a:
+                f_count.setdefault(i, 0)
+                f_count[i] += 1
+            for i, n in f_count.items():
+                buf[i] += d * n * n
+        return buf
+
+    def get_exp2(self, seq_list, seq_scalar):
+        exp = self.feat_count2(self.wfeat, seq_list, seq_scalar)
+        if self.cfeat is None:
+            return exp
+
+        exp2 = self.feat_count2(self.cfeat, self.data.seqs_to_class(seq_list), seq_scalar)
+        return np.concatenate([exp, exp2])
 
     def get_gradient(self, data_list, data_scalar, sample_list, sample_scalar):
 
@@ -109,18 +172,14 @@ class FeatPhi(Base):
         # sample_len = np.array([len(x) for x in sample_list])
         # sample_scalar = self.len_factor[sample_len - self.config.min_len] / len(sample_list)
 
-        exp_d = self.feat_count(self.wfeat, data_list, data_scalar)
-        exp_s = self.feat_count(self.wfeat, sample_list, sample_scalar)
-
-        if self.cfeat is None:
-            return exp_d - exp_s
-
-        exp_d2 = self.feat_count(self.cfeat, data_list, data_scalar)
-        exp_s2 = self.feat_count(self.cfeat, sample_list, sample_scalar)
-        return np.concatenate([exp_d - exp_s, exp_d2 - exp_s2])
+        exp_d = self.get_exp(data_list, data_scalar) if self.data_exp is None else self.data_exp
+        exp_s = self.get_exp(sample_list, sample_scalar)
+        return exp_d - exp_s - self.config.L2_reg * self.get_params()
 
     def update(self, data_list, data_scalars, sample_list, sample_scalars, learning_rate=1.0):
         g = self.get_gradient(data_list, data_scalars, sample_list, sample_scalars)
+        if self.data_var is not None:
+            g /= self.data_var
         d = self.update_op.update(-g, learning_rate)
 
         self.wfeat.values += d[0: self.wfeat.num]
@@ -128,11 +187,25 @@ class FeatPhi(Base):
             self.cfeat.values += d[self.wfeat.num:]
 
     def initialize(self):
-        print('[{}.{}] load features ...'.format(__name__, self.__class__.__name__))
-        self.wfeat.load_from_seqs(self.data.datas[0])
-        if self.cfeat is not None:
-            self.cfeat.load_from_seqs(self.data.seqs_to_class(self.data.datas[0]))
+        if self.wfeat.num == 0:
+            with wb.processing('load features ...'):
+                self.wfeat.load_from_seqs(self.data.datas[0])
+                if self.cfeat is not None:
+                    self.cfeat.load_from_seqs(self.data.seqs_to_class(self.data.datas[0]))
+        else:
+            print('[{}.{}] Features exist. Don\'t reload features'.format(__name__, self.__class__.__name__))
+
         self.update_op = wb.ArrayUpdate(self.get_param_num(), {'name': self.opt_method})
+
+        if self.config.pre_compute_data_exp:
+            with wb.processing('compute feat-exp on data'):
+                scalar = np.ones(len(self.data.datas[0])) / len(self.data.datas[0])
+                self.data_exp = self.get_exp(self.data.datas[0], scalar)
+
+        if self.config.pre_compute_data_var:
+            with wb.processing('compute feat-var on data'):
+                self.data_var = self.compute_data_var(self.data.datas[0])
+                self.data_var = np.maximum(self.data_var, self.config.var_gap)
 
     def save(self, fname):
         with open(fname + '.feat', 'wt') as f:
@@ -145,6 +218,14 @@ class FeatPhi(Base):
             self.wfeat.restore(f)
             if self.cfeat is not None:
                 self.cfeat.restore(f)
+
+    def compute_data_var(self, seq_list):
+
+        n = len(seq_list)
+        scalar = np.ones(n) / n
+        exp = self.get_exp(seq_list, scalar)
+        exp2 = self.get_exp2(seq_list, scalar)
+        return exp2 - exp ** 2 + self.config.L2_reg
 
 
 class NetPhi(Base):
@@ -235,7 +316,7 @@ class Norm(NormBase):
 
         self.zeta = np.array(self.config.init_logz) - self.config.init_logz[0]
         self.logz1 = self.config.init_logz[0]
-        self.update_op = wb.ArrayUpdate(self.zeta, {'name': self.opt_method})
+        # self.update_op = wb.ArrayUpdate(self.zeta, {'name': self.opt_method})
 
     def get_logz(self, lengths=None):
         if lengths is None:
@@ -256,13 +337,12 @@ class Norm(NormBase):
             grad[len(x) - self.config.min_len] += 1
         grad /= len(sample_list)
         grad /= self.config.pi_0[self.config.min_len:]
-        grad = np.minimum(grad, 1.0)
         return grad
 
     def update(self, seq_list, learning_rate=1.0):
         g = self.get_gradient(seq_list)
 
-        self.zeta += self.update_op.update(-g, learning_rate)
+        self.zeta += np.clip(learning_rate * g, a_min=0, a_max=self.config.zeta_gap)
         self.zeta -= self.zeta[0]
 
     def save(self, fname):

@@ -74,7 +74,7 @@ class FeatPhi(Base):
         self.opt_method = opt_method
 
         wftype, cftype = feat.separate_type(feat.read_feattype_file(self.config.feat_type_file))
-        self.wfeat = feat.Feats(wftype)
+        self.wfeat = feat.FastFeats(wftype, sub_process_num=10)
         # self.cfeat = feat.Feats(cftype)
 
         self.update_op = None
@@ -90,29 +90,31 @@ class FeatPhi(Base):
 
     def get_gradient(self, seq_list, cluster_weights):
         grad = np.zeros_like(self.wfeat.values)
-        for x, w in zip(seq_list, cluster_weights):
-            for i in self.wfeat.seq_find(x):
+
+        a_list = self.wfeat.seq_list_find(seq_list)
+        for a, w in zip(a_list, cluster_weights):
+            for i in a:
                 grad[i] += w
         return grad
 
-    def get_update(self, seq_list, cluster_weights, cluster_m):
-        grad = np.zeros_like(self.wfeat.values)
-        sigma = np.zeros_like(self.wfeat.values)
-        for x, w, m in zip(seq_list, cluster_weights, cluster_m):
-            a = self.wfeat.seq_find(x)   # find the features
-            for i in a:
-                grad[i] += w
-
-            c = dict()  # count the feature
-            for i in a:
-                if i in c:
-                    c[i] += 1
-                else:
-                    c[i] = 1
-            for i, n in c.items():
-                sigma[i] += m * (n**2)
-
-        return grad / np.maximum(sigma, self.config.var_gap)
+    # def get_update(self, seq_list, cluster_weights, cluster_m):
+    #     grad = np.zeros_like(self.wfeat.values)
+    #     sigma = np.zeros_like(self.wfeat.values)
+    #     for x, w, m in zip(seq_list, cluster_weights, cluster_m):
+    #         a = self.wfeat.seq_find(x)   # find the features
+    #         for i in a:
+    #             grad[i] += w
+    #
+    #         c = dict()  # count the feature
+    #         for i in a:
+    #             if i in c:
+    #                 c[i] += 1
+    #             else:
+    #                 c[i] = 1
+    #         for i, n in c.items():
+    #             sigma[i] += m * (n**2)
+    #
+    #     return grad / np.maximum(sigma, self.config.var_gap)
 
     def update(self, seq_list, cluster_weights, cluster_m=None, learning_rate=1.0):
         # if cluster_m is None:
@@ -122,7 +124,8 @@ class FeatPhi(Base):
         self.wfeat.values += self.update_op.update(-g, learning_rate)
 
     def initialize(self):
-        self.wfeat.load_from_seqs(self.data.datas[0])
+        with wb.processing('[%s.%s] load feature from corpus...' % (__name__, self.__class__.__name__)):
+            self.wfeat.load_from_seqs(self.data.datas[0])
         self.update_op = wb.ArrayUpdate(self.wfeat.values, {'name': self.opt_method})
 
     def save(self, fname):

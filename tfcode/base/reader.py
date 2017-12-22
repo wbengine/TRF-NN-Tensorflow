@@ -26,8 +26,9 @@ class Data(object):
         self.word_to_chars = []
 
     def load_raw_data(self, file_list, add_beg_token=None, add_end_token='</s>',
-                      add_unknwon_token='<unk>', min_length=None, max_length=None, reverse_sentence=False,
-                      rm_beg_end_in_data=False):
+                      add_unknwon_token='<unk>', min_length=3, max_length=None, reverse_sentence=False,
+                      rm_beg_end_in_data=False,
+                      raw_data_map=None):
         """
         load raw data form txt files
 
@@ -40,6 +41,7 @@ class Data(object):
             max_length: if not None, then just load the line with length <= max_length
             reverse_sentence: if True, then reverse the each sentence, used to training reversed-LSTM
             rm_beg_end_in_data: if True, then the read data lists donot containing the <s> and </s>
+            raw_data_map: a function, input a sequence and output a processed sequence
 
         Returns:
             self pointer
@@ -50,10 +52,16 @@ class Data(object):
         self.end_token_str = add_end_token
         self.unk_token_str = add_unknwon_token
         self.rm_beg_end_in_data = rm_beg_end_in_data
+        self.raw_data_map = raw_data_map
 
         raw_datas = []
         for filename in file_list:
             data = _read_sequences(filename, add_beg_token, add_end_token)
+
+            # through the filter
+            if raw_data_map is not None:
+                data = list(map(raw_data_map, data))
+
             if min_length is not None or max_length is not None:
                 total_lines = len(data)
                 if max_length is not None:
@@ -64,9 +72,11 @@ class Data(object):
                 print('maxlen={} remove {:.2f}% ({}) lines.'.format(max_length,
                                                                     (total_lines-reset_lines)/total_lines*100,
                                                                     (total_lines-reset_lines)))
+
             if reverse_sentence:
                 for d in data:
                     d.reverse()
+
             raw_datas.append(data)
 
         self.word_to_id, self.word_count = _build_vocab(raw_datas,
@@ -124,11 +134,15 @@ class Data(object):
             data = _read_sequences(fread, self.beg_token_str, self.end_token_str)
         else:
             data = fread
+
         if is_nbest:
             if self.beg_token_str is not None:
                 data = [seq[0:1] + seq[2:] for seq in data]
             else:
                 data = [seq[1:] for seq in data]
+
+        if self.raw_data_map is not None:
+            data = list(map(self.raw_data_map, data))
 
         if max_length is not None:
             total_line = len(data)
@@ -375,6 +389,9 @@ class Data(object):
                 for i, (w, c) in enumerate(zip(self.word_list, self.word_to_class)):
                     f.write('{}\t{}\tclass={}\n'.format(i, w, c))
 
+    def texts_to_id(self, txt_seq):
+        return [self.word_to_id[_string_format(w)] for w in txt_seq]
+
     def seqs_to_class(self, seq_list):
         if self.word_to_class is None:
             raise TypeError('Unkown word to class information. Run data().word2vec')
@@ -553,6 +570,10 @@ class LargeData(Data):
         return count / np.sum(count)
 
 
+def _string_format(s):
+    return s.lower()
+
+
 def _count_data_info(data):
     """
     count the sentence number and token number in data
@@ -597,6 +618,7 @@ def _file_to_word_ids(data, word_to_id, unk=None, skip_head=0, skip_tail=0):
         else:
             residual_seq = seq[skip_head:]
         for w in residual_seq:
+            w = _string_format(w)
             if w in word_to_id:
                 wid.append(word_to_id[w])
             elif unk in word_to_id:
@@ -623,7 +645,7 @@ def _read_sequences(filename, add_beg_token=None, add_end_token='</s>'):
     """
     with open(filename, 'rt', errors='ignore') as f:
         return [([add_beg_token] if add_beg_token is not None else []) +
-                [w.lower() for w in line.split()] +
+                [_string_format(w) for w in line.split()] +
                 ([add_end_token] if add_end_token is not None else [])
                 for line in f]
 

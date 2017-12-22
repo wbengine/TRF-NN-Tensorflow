@@ -344,7 +344,6 @@ class TRF(object):
             self.phi_net.update(seq_list, cluster_weights, cluster_m, learning_rate=self.cur_lr_net)
 
     def update(self, data_list):
-        print_infos = {}
 
         # generate noise samples
         with self.time_recoder.recode('sampling'):
@@ -355,7 +354,7 @@ class TRF(object):
                 data_list = data_list[0: n//2] + data_list_batch[0: n - n//2]
             data_logpn = self.noise_sampler.noise_logps(data_list)
 
-            sample_list, sample_logpn = self.noise_sampler.get()
+            sample_list, sample_logpn = self.noise_sampler.get(data_list)
             assert len(sample_list) == self.config.batch_size * self.config.noise_factor
 
             seq_list = data_list + sample_list
@@ -547,9 +546,17 @@ class TRF(object):
 
 
 class DefaultOps(wb.Operation):
-    def __init__(self, m, nbest_list_path, trans_path, ac_score=None):
+    def __init__(self, m, nbest_or_nbest_file_tuple, scale_vec=np.linspace(0.1, 1.0, 10)):
         self.m = m
-        self.nbest_cmp = reader.NBest(nbest_list_path, trans_path, ac_score)
+        self.scale_vec = scale_vec
+
+        if isinstance(nbest_or_nbest_file_tuple, tuple):
+            print('[%s.%s] input the nbest files.' % (__name__, self.__class__.__name__))
+            self.nbest_cmp = reader.NBest(*nbest_or_nbest_file_tuple)
+        else:
+            print('[%s.%s] input nbest computer.' % (__name__, self.__class__.__name__))
+            self.nbest_cmp = nbest_or_nbest_file_tuple
+
         self.wer_next_epoch = 0
         self.wer_per_epoch = 1.0
         self.write_models = wb.mkdir(os.path.join(self.m.logdir, 'wer_results'))
@@ -567,7 +574,7 @@ class DefaultOps(wb.Operation):
 
             # compute wer
             time_beg = time.time()
-            wer = self.nbest_cmp.wer()
+            wer = self.nbest_cmp.wer(lmscale=self.scale_vec)
             wer_time = time.time() - time_beg
 
             wb.WriteScore(self.write_models + '/epoch%.2f' % epoch + '.lmscore', self.nbest_cmp.lmscore)

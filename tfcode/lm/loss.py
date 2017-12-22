@@ -13,6 +13,16 @@ class BNCELoss(object):
         # denote:
         #   B = batch_size * step_size = size(labels)
 
+        # smooth noise_probs
+        if np.min(noise_probs) == 0:
+            print('[%s.%s] smooth noise prob.' % (__name__, self.__class__.__name__))
+            noise_probs += 1e-5
+            noise_probs /= np.sum(noise_probs)
+        elif np.min(noise_probs) < 0:
+            print('[%s.%s] fix noise prob.' % (__name__, self.__class__.__name__))
+            noise_probs += -np.min(noise_probs) + 1e-5
+            noise_probs /= np.sum(noise_probs)
+
         with tf.name_scope(name):
             # define the noise logprobs
             noise_logps = tf.get_variable(name + '/noise_logp', dtype=tf.float32,

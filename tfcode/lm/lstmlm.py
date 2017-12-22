@@ -7,6 +7,7 @@ import tqdm
 
 from base import *
 from lm import loss
+from lm import stop
 
 
 class Config(wb.Config):
@@ -30,13 +31,16 @@ class Config(wb.Config):
         self.lr_decay = 0.5         # [learning rate] decay rate
         self.lr_decay_when = 4      # [learning rate] decay at epoch
         self.epoch_num = 13      # total epoch number
+        self.early_stop = False
         self.save_embedding_path = None  # if not None, then save the embedding to file
         self.write_dbgs = None
 
     def __str__(self):
         s = 'lstm_e{}_h{}x{}'.format(self.embedding_size, self.hidden_size, self.hidden_layers)
         if self.softmax_type != 'Softmax':
-            s += '_' + self.softmax_type + '_' + self.optimize_method
+            s += '_' + self.softmax_type
+        if self.optimize_method != 'SGD':
+            s += '_' + self.optimize_method
         return s
 
 
@@ -699,6 +703,7 @@ class LM(object):
             train_cost = []
             train_nll = []
             total_word = 0
+            early_stop = stop.EarlyStop(self.config.learning_rate, 1e-3, delay_min_rate=0.05)
 
             for epoch in range(self.config.epoch_num):
                 if is_shuffle:
@@ -707,7 +712,10 @@ class LM(object):
                 epoch_size = len(x_lists)
 
                 # update learning rate
-                lr = self.config.learning_rate * self.config.lr_decay ** max(epoch + 1 - self.config.lr_decay_when, 0.0)
+                if self.config.early_stop:
+                    lr = early_stop.lr
+                else:
+                    lr = self.config.learning_rate * self.config.lr_decay ** max(epoch + 1 - self.config.lr_decay_when, 0.0)
                 self.set_lr(session, lr)
 
                 # run epoch
@@ -739,6 +747,11 @@ class LM(object):
                 print('epoch={:d} ppl-valid={:.3f}'.format(epoch + 1, eval_valid[1]))
                 # summ_bank.write_summary(sv, session, 'ppl_valid', eval_valid[1])
                 # summ_bank.write_summary(sv, session, 'ppl_test', eval_test[1])
+
+                if self.config.early_stop:
+                    if early_stop.verify(eval_valid[1]) is None:
+                        print('early stopped !')
+                        break
 
             self.save(session, write_model)
         else:

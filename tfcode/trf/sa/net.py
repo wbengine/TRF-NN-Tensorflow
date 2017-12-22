@@ -52,7 +52,15 @@ class NetBase(object):
             ###################################################
             if is_training:
                 # a variables used to save the gradient
-                self.update_vars = self.vars[-2:]
+                if self.config.only_train_weight:
+                    self.update_vars = self.vars[-2:]
+                else:
+                    self.update_vars = self.vars
+
+                print('[%s.%s] update variables in %s' % (__name__, self.__class__.__name__, name))
+                for v in self.update_vars:
+                    print('\t' + v.name, v.shape, v.device)
+
                 self.grad_clean = []
                 self.grad_bufs = []
                 for v in self.update_vars:

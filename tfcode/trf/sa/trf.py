@@ -19,7 +19,7 @@ class Config(wb.Config):
         self.max_len = data.get_max_len()
         self.vocab_size = data.get_vocab_size()
         self.pi_true = data.get_pi_true()
-        self.pi_0 = data.get_pi0(self.pi_true, add=0.01)
+        self.pi_0 = data.get_pi0(self.pi_true)
         self.beg_token = data.get_beg_token()
         self.end_token = data.get_end_token()
 
@@ -53,6 +53,7 @@ class Config(wb.Config):
         self.opt_feat_method = 'sgd'
         self.opt_net_method = 'sgd'
         self.opt_logz_method = 'sgd'
+        self.zeta_gap = 10
         self.max_epoch = 100
 
         # dbg
@@ -75,8 +76,6 @@ class Config(wb.Config):
         if self.net_config is not None:
             s += '_' + str(self.net_config)
 
-        # if self.data_sampler is not None:
-        #     s += '_data{}'.format(self.data_sampler.split(':')[0])
         return s
 
 
@@ -760,9 +759,16 @@ class TRF(object):
 
 
 class DefaultOps(wb.Operation):
-    def __init__(self, m, nbest_list_path, trans_path, ac_score=None):
+    def __init__(self, m, nbest_or_nbest_file_tuple):
         self.m = m
-        self.nbest_cmp = reader.NBest(nbest_list_path, trans_path, ac_score)
+
+        if isinstance(nbest_or_nbest_file_tuple, tuple):
+            print('[%s.%s] input the nbest files.' % (__name__, self.__class__.__name__))
+            self.nbest_cmp = reader.NBest(*nbest_or_nbest_file_tuple)
+        else:
+            print('[%s.%s] input nbest computer.' % (__name__, self.__class__.__name__))
+            self.nbest_cmp = nbest_or_nbest_file_tuple
+
         self.wer_next_epoch = 0
         self.wer_per_epoch = 1.0
         self.write_models = wb.mkdir(os.path.join(self.m.logdir, 'wer_results'))

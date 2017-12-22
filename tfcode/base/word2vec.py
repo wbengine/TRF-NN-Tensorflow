@@ -3,7 +3,7 @@ import os
 import numpy as np
 
 # the binary dir for word2vec tools
-bindir = '/mnt/workspace2/wangbin/work/word2vec-master/c/'
+bindir = '/mnt/workspace/wangbin/work/TRF-NN-tensorflow/tools/word2vec/c/'
 
 
 def word2vec(finput, foutput, dim):
