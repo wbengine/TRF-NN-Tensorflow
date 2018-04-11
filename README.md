@@ -39,3 +39,4 @@ The experiments are in the folder egs/, which are originazed as follows:
 Typical Experiments:
 
 - For "Language modeling with neural trans-dimensional random fields." ASRU, 2017, see 'egs/ptb_wsj0/run_trf_neural_sa.py'
+- For "Learning neural trans-dimensional random field language models with noise-contrastive estimation" ICASSP, 2018, see 'egs/CHiME4/run_trf_neural_nce.py'
