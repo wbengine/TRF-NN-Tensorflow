@@ -160,6 +160,9 @@ class Feats(object):
         """
         return np.array([self.seq_weight(seq) for seq in seq_list])
 
+    def seq_list_find(self, seq_list):
+        return [self.seq_find(seq) for seq in seq_list]
+
 
 class FastFeats(Feats):
     def __init__(self, type_dict, sub_process_num=4):

@@ -28,17 +28,27 @@ def exists(path):
 
 
 # create the dir
-def mkdir(path, is_recreate=False):
+def mkdir(path, is_recreate=False, force=False):
     if not os.path.exists(path):
         os.makedirs(path)
     else:
         if is_recreate:
-            b = input('Path exit: {} \n'
-                      'Do you want delete it? [y|n]: '.format(path))
+            if force:
+                b = 'y'
+            else:
+                b = input('Path exit: {} \n'
+                          'Do you want delete it? [y|n]: '.format(path))
+
             if b == 'y' or b == 'yes':
                 print('Delete and recreate path', path)
                 rmdir(path)
                 os.makedirs(path)
+    return path
+
+
+def mklogdir(path, logname='trf.log', is_recreate=False, force=False):
+    mkdir(path, is_recreate, force)
+    sys.stdout = std_log(os.path.join(path, logname))
     return path
 
 
@@ -202,6 +212,8 @@ class clock:
         self.time_recoder = dict()
         self.time_recoder_beg_stack = list()
 
+        self.print_recorde_info = False
+
     def beg(self):
         self.time_beginning = time.time()
 
@@ -229,14 +241,17 @@ class clock:
         try:
             self.time_recoder.setdefault(name, 0)
             self.time_recoder_beg_stack.append(time.time())
+            if self.print_recorde_info:
+                print('[clock] recode [{}] beg'.format(name))
             yield
         finally:
             beg_time = self.time_recoder_beg_stack.pop(-1)
             self.time_recoder[name] += (time.time() - beg_time)/60
+            if self.print_recorde_info:
+                print('[clock] recode [{}] end, time={}'.format(name, self.time_recoder[name]))
 
     def items(self):
-        return self.time_recoder.items()
-
+        return sorted(self.time_recoder.items(), key=lambda x: x[0])
 
 
 class std_log:
@@ -281,6 +296,24 @@ def file_count(fname):
         nWord = sum([len(x) for x in fname])
     return [nLine, nWord]
 
+
+def file_len_count(fname):
+    """
+    count the file length
+    """
+    len_dict = {}
+    with open(fname, 'rt') as f:
+        for line in f:
+            n = len(line.split())
+            len_dict.setdefault(n, 0)
+            len_dict[n] += 1
+
+    max_len = max(len_dict.keys())
+    len_count = np.zeros(max_len + 1)
+    for n, count in len_dict.items():
+        len_count[n] = count
+
+    return len_count.tolist()
 
 # get more info for txt files
 class TxtInfo(object):
@@ -904,13 +937,15 @@ class ArrayUpdate:
         self.opt_name = self.opt_config.setdefault('name', 'adam')
 
         self.t = 0
+        self.param_size = params if isinstance(params, int) else np.shape(params)
         if self.opt_name.lower() == 'adam':
-            if isinstance(params, int):
-                self.m = np.zeros(params)
-                self.v = np.zeros(params)
-            else:
-                self.m = np.zeros_like(params)
-                self.v = np.zeros_like(params)
+            self.m = np.zeros(self.param_size)
+            self.v = np.zeros(self.param_size)
+
+        if self.opt_name.lower() == 'amsgrad':
+            self.m = np.zeros(self.param_size)
+            self.v = np.zeros(self.param_size)
+            self.v_max = np.zeros(self.param_size)
 
         self.dx_norm = 0
 
@@ -929,8 +964,11 @@ class ArrayUpdate:
         return steps
 
     def update(self, grads, lr):
-        if self.opt_name == 'adam':
+        grads = np.array(grads)
+        if self.opt_name.lower() == 'adam':
             return self.update_adam(grads, lr)
+        elif self.opt_name.lower() == 'amsgrad':
+            return self.update_amsgrad(grads, lr)
         else:
             return self.update_grad(grads, lr)
 
@@ -951,6 +989,18 @@ class ArrayUpdate:
         v_tied = self.v / (1-beta2**self.t)
         step = m_tide / (np.sqrt(v_tied) + es)
 
+        return -lr * self.prepare_grad(step)
+
+    def update_amsgrad(self, grads, lr):
+        beta1 = 0.9
+        beta2 = 0.999
+        es = 10 ** -8
+        self.t += 1
+        self.m = beta1 * self.m + (1 - beta1) * grads
+        self.v = beta2 * self.v + (1 - beta2) * (grads ** 2)
+        self.v_max = np.maximum(self.v_max, self.v)
+
+        step = self.m / (np.sqrt(self.v_max) + es)
         return -lr * self.prepare_grad(step)
 
 
@@ -993,7 +1043,14 @@ class Config(object):
         np.float16: float
     }
 
-    def encode(self):
+    def compact_list(self, v, max_size=10):
+        if isinstance(v, list):
+            if len(v) > max_size:
+                s_list = [str(i) for i in v[0:5]] + ['...'] + [str(i) for i in v[-2:]]
+                return '[' + ', '.join(s_list) + ']'
+        return v
+
+    def encode(self, is_compact=False):
         d = dict()
         for key, v in self.__dict__.items():
             if isinstance(v, Config):
@@ -1003,7 +1060,7 @@ class Config(object):
                 for t, f in Config.value_encoding_map.items():
                     if isinstance(v, t):
                         trans_fun = f
-                d[key] = trans_fun(v)
+                d[key] = trans_fun(v) if not is_compact else self.compact_list(trans_fun(v))
         return d
 
     def decode(self, d):
@@ -1019,7 +1076,7 @@ class Config(object):
         return json.dumps(self.encode(), indent=4, sort_keys=True)
 
     def print(self):
-        print(json.dumps(self.encode(), indent=4, sort_keys=True))
+        print(json.dumps(self.encode(is_compact=True), indent=4, sort_keys=True))
 
     def loads(self, s):
         self.decode(json.loads(s))
@@ -1068,7 +1125,19 @@ def write_array(f, a, fmt='%+15.5e', delimiter=' ', newline='\n'):
 
 
 class Operation(object):
+    def __init__(self):
+        self.perform_next_epoch = 0
+        self.perform_per_epoch = 1.0
+
     def run(self, step, epoch):
+        if epoch >= self.perform_next_epoch:
+            self.perform(step, epoch)
+
+            self.perform_next_epoch += self.perform_per_epoch
+            while self.perform_next_epoch < epoch:
+                self.perform_next_epoch += self.perform_per_epoch
+
+    def perform(self, step, epoch):
         pass
 
 
@@ -1086,11 +1155,20 @@ def logaddexp(a, b, wa=None, wb=None):
     return np.log(wa * np.exp(a-m) + wb * np.exp(b-m)) + m
 
 
-def split_to_char_ch(s):
+def split_to_char_ch(s, keep_en_words=True):
     """
     input a chinese string, and return the char list
     """
-    # split Chinese word to char, and preserve the English words
-    cs = re.split(r'([\u4e00-\u9fa5])', s)
-    cs = list(filter(None, cs))
+    if keep_en_words:
+        # split Chinese word to char, and preserve the English words
+        cs = re.split(r'([\u4e00-\u9fa5])', s)
+        cs = list(filter(None, cs))
+    else:
+        cs = list(s)
     return cs
+
+
+def generate_pos(word_len):
+    if word_len == 1:
+        return ['s']
+    return ['b'] + ['m'] * (word_len-2) + ['e']

@@ -24,6 +24,17 @@ def get_config_cnn(vocab_size):
     return config
 
 
+def get_config_rnn(vocab_size):
+    config = net.Config(vocab_size)
+    config.embedding_dim = 200
+    config.structure_type = 'rnn'
+    config.rnn_type = 'blstm'
+    config.rnn_hidden_size = 200
+    config.rnn_hidden_layers = 2
+    # config.rnn_predict = True
+    return config
+
+
 def create_config(data):
     config = trf.Config(data)
 
@@ -33,7 +44,7 @@ def create_config(data):
     config.sample_sub = 5
     config.train_batch_size = 1000
     config.sample_batch_size = 100
-    # config.auxiliary_model = 'lstm'
+    config.auxiliary_type = 'lstm'
     config.auxiliary_config.embedding_size = 200
     config.auxiliary_config.hidden_size = 200
     config.auxiliary_config.hidden_layers = 1
@@ -60,12 +71,12 @@ def create_config(data):
 
 
 def create_name(config):
-    return str(config)
+    return str(config) + '_pretrain'
 
 
 def main(_):
     data = reader.Data().load_raw_data(reader.ptb_raw_dir(),
-                                       add_beg_token='<s>', add_end_token='</s>',
+                                       add_beg_token='</s>', add_end_token='</s>',
                                        add_unknwon_token='<unk>')
 
     # create config
@@ -87,7 +98,7 @@ def main(_):
     data.write_data(data.datas[2], logdir + '/test.id')
 
     m = trf.TRF(config, data, logdir=logdir, device='/gpu:0')
-    # nce_pretrain_model_path = 'trf_nce/trf_nce10_e16_cnn_(1to5)x16_(3x16)x3_relu_noise2gram/trf.mod'
+    # nce_pretrain_model_path = 'trf_nce/trf_nce20_e256_cnn_(1to10)x128_(3x128)x3_relu_noise2gram/trf.mod'
 
     sv = tf.train.Supervisor(logdir=os.path.join(logdir, 'logs'),
                              global_step=m.global_step)
@@ -98,7 +109,6 @@ def main(_):
         with session.as_default():
 
             # m.restore_nce_model(nce_pretrain_model_path)
-            # m.save()
 
             m.train(operation=trf.DefaultOps(m, reader.wsj0_nbest()))
 

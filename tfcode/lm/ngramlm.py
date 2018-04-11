@@ -129,10 +129,10 @@ class Config:
     def __init__(self, data):
         self.order = 3
         self.discount = '-kndiscount'
-        self.cutoff = [0, 0, 0]
+        self.cutoff = [0, 0, 0, 0, 0, 0]
 
     def __str__(self):
-        return 'KN{}_{}'.format(self.order, ''.join([str(i) for i in self.cutoff]))
+        return 'KN{}_{}'.format(self.order, ''.join([str(i) for i in self.cutoff[0: self.order]]))
 
 
 class Model:
@@ -219,7 +219,7 @@ class Model:
         print(res)
         return float(res[res.find('ppl='):].split()[1])
     
-    def rescore(self, nbest_list, temp_name='nbest'):
+    def rescore(self, nbest_list, temp_name='temp_nbest'):
         """
         rescore the nbest
         Args:

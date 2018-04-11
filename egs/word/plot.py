@@ -59,9 +59,13 @@ def search_file(name):
 
 
 logs = [
-    'trf_nce/trf_nce10_featg4_noise2gram',
-    'trf_sa/trf_sa100_featg4',
-    'trf_nce/trf_nce10_e16_cnn_(1to5)x16_(3x16)x3_relu_noise2gram',
+    'trf_sa/trf_IS_featg4_L2reg1.00e-06',
+    'trf_is/trf_nce1_e32_cnn_(1to5)x32_(3x32)x3_logzlinear_LSTMGen',
+    # 'trf_nce/trf_nce10_featg4_noise2gram',
+    # 'trf_sa/trf_sa100_featg4',
+    # 'trf_sa/trf_sa10_featg4_L2reg1.00e-06_2',
+    # 'trf_sa/trf_sa10_featg4_L2reg1.00e-06_22',
+    # 'trf_nce/trf_nce10_e16_cnn_(1to5)x16_(3x16)x3_relu_noise2gram',
     # 'trf_sa/trf_sa100_e16_cnn_(1to5)x16_(3x16)x3_relu',
     ]
 baseline_name = ['KN3', 'KN4']
@@ -156,6 +160,25 @@ def plot_ll():
         plt.legend(fontsize='x-small')
 
 
+def plot_kl():
+    plt.figure()
+    max_epoch = 1
+    for log, color in zip(logs, colors):
+        v = read_log(search_file(log + '/trf.log'))
+        epochs = v['epoch']
+        kl = v['kl']
+
+        if len(epochs) == 0:
+            print('[Warning] %s is empty!' % logs)
+            continue
+
+        max_epoch = max(max_epoch, epochs[-1])
+
+        plt.plot(epochs, kl, color+'-', label=log)
+        plt.title('KL_distance')
+        plt.xlabel('epoch')
+
+
 def plot_time():
     plt.figure()
     for log, color in zip(logs, colors):
@@ -217,9 +240,49 @@ def plot_logz():
     plt.legend()
 
 
+def plot_pi():
+    plt.figure()
+    log = logs[-1]
+
+    steps = []
+    sample_pi = []
+    true_pi = []
+    with open(os.path.join(log, 'trf.dbg.zeta')) as f:
+        for line in f:
+            i = line.find('=')
+            if i == -1:
+                continue
+
+            label = line[0: i]
+            data = line[i+1:]
+            if label.find('step') == 0:
+                steps.append(int(data))
+            elif label.find('all_pi') == 0:
+                a = [float(i) for i in data.split()]
+                sample_pi.append(a)
+            elif label.find('pi_0') == 0:
+                a = [float(i) for i in data.split()]
+                true_pi.append(a)
+            else:
+                pass
+
+    sample_pi = np.array(sample_pi)
+    true_pi = np.array(true_pi)
+
+    for i in range(sample_pi.shape[1]):
+        plt.plot(steps, sample_pi[:, i] - true_pi[:, i])
+
+    plt.title('pi')
+    plt.xlabel('steps')
+
+    plt.show()
+
+
 if __name__ == '__main__':
     plot_ll()
+    plot_kl()
     plot_wer()
+    # plot_pi()
     # plot_logz()
 
     plt.show()

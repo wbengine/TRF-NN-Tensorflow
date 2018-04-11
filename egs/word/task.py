@@ -29,7 +29,7 @@ def get_nbest():
     return nbest_dir, trans_dir
 
 
-def get_config_cnn(vocab_size, n=16):
+def get_config_cnn(vocab_size, n=32):
     config = net.Config(vocab_size)
     config.embedding_dim = n
     config.structure_type = 'cnn'

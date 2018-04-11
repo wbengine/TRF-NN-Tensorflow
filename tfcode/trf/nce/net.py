@@ -9,6 +9,13 @@ class Config(net.Config):
         super().__init__(data.get_vocab_size())
         self.max_grad_norm = 10
         self.opt_method = 'sgd'
+        self.l2_reg = 0
+
+    def __str__(self):
+        s = super().__str__()
+        # if self.l2_reg > 0:
+        #     s += '_reg{:.2e}'.format(self.l2_reg)
+        return s
 
 
 class NetBase(object):
@@ -57,6 +64,7 @@ class NetBase(object):
                 self.trainop = layers.TrainOp(self.grads, self.vars,
                                               optimize_method=self.config.opt_method,
                                               max_grad_norm=self.config.max_grad_norm,
+                                              l2_reg=self.config.l2_reg,
                                               name=name + '/train_op')
 
     def get_param_num(self):

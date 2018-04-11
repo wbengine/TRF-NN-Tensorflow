@@ -25,8 +25,10 @@ class Data(object):
         self.char_list = []
         self.word_to_chars = []
 
+        self.raw_data_map = None
+
     def load_raw_data(self, file_list, add_beg_token=None, add_end_token='</s>',
-                      add_unknwon_token='<unk>', min_length=3, max_length=None, reverse_sentence=False,
+                      add_unknwon_token='<unk>', min_length=None, max_length=None, reverse_sentence=False,
                       rm_beg_end_in_data=False,
                       raw_data_map=None):
         """
@@ -141,6 +143,12 @@ class Data(object):
             else:
                 data = [seq[1:] for seq in data]
 
+            # process the empty sequences
+            empty_len = int(self.beg_token_str is not None) + int(self.end_token_str is not None)
+            for s in data:
+                if len(s) <= empty_len:
+                    s.insert(-1, self.end_token_str)
+
         if self.raw_data_map is not None:
             data = list(map(self.raw_data_map, data))
 
@@ -170,10 +178,13 @@ class Data(object):
     def write_vocab(self, fwrite):
         with open(fwrite, 'wt') as f:
             for i, w in enumerate(self.word_list):
+                s = '{}\t{}'.format(i, w)
+                if self.word_to_class is not None:
+                    s += '\tcid={}'.format(self.word_to_class[i])
                 if self.word_to_chars:
-                    f.write('{}\t{}\t{}\n'.format(i, w, '-'.join([str(k) for k in self.word_to_chars[i]])))
-                else:
-                    f.write('{}\t{}\n'.format(i, w))
+                    s += '\t{}'.format('-'.join([str(k) for k in self.word_to_chars[i]]))
+
+                f.write(s + '\n')
 
     def read_vocab(self, fread):
         v = dict()
@@ -311,10 +322,10 @@ class Data(object):
     def get_pi0(self, pi_true=None, add=None):
         if pi_true is None:
             pi_true = self.get_pi_true()
-        pi0 = np.array(pi_true)
-        idx = np.argmax(pi0)
 
         min_len = self.get_min_len()
+        pi0 = np.array(pi_true)
+        idx = np.argmax(pi0[min_len + 1:]) + min_len + 1
 
         if add is None:
             pi0[min_len:idx+1] = pi0[idx]
@@ -705,7 +716,7 @@ def produce_data_for_rnn(raw_data, batch_size, step_size, include_residual_data=
     """
     one_data = []
     for d in raw_data:
-        one_data += d
+        one_data += list(d)
 
     one_data = np.array(one_data)
     data_len = np.size(one_data)
@@ -812,7 +823,7 @@ def produce_data_for_rnn_len(raw_data, batch_size, step_size, pad_value=0):
 #         return x, y
 
 
-def produce_data_to_array(seq_list, pad_value=0):
+def produce_data_to_array(seq_list, pad_value=0, dtype='int32'):
     """
     trans a list of sequence to a matrix, filling pad_value
     such as:
@@ -837,13 +848,15 @@ def produce_data_to_array(seq_list, pad_value=0):
     for i in range(num):
         input_x[i][0: input_n[i]] = np.array(seq_list[i])
 
-    return input_x.astype('int32'), input_n.astype('int32')
+    return input_x.astype(dtype), input_n.astype('int32')
 
 
 def extract_data_from_array(input_x, input_n=None):
     """trans [input_x, input_n] to seq_list"""
     if input_n is None:
         return [list(x) for x in input_x]
+    elif isinstance(input_n, int):
+        return [list(x[0: input_n]) for x in input_x]
     else:
         return [list(x[0:n]) for x, n in zip(input_x, input_n)]
 
@@ -926,6 +939,31 @@ def wsj0_nbest():
     return nbest, trans, acscore, lmscore
 
 
+def ptb_wsj0_lstm_lmscore(size='large', strategy='p'):
+    """
+    :param size: 'small', 'media', 'large'
+    :param strategy: 'p', 'r', 's' for preserve, reset, shuffle
+    :return: lmscore
+    """
+    abpath = os.path.split(os.path.realpath(__file__))[0]
+    root = os.path.join(abpath, '../../egs/ptb_wsj0/lstm/')
+    if size == 'small':
+        root += 'lstm_200x2'
+    elif size == 'media':
+        root += 'lstm_650x2'
+    elif size == 'large':
+        root += 'lstm_1500x2'
+    else:
+        raise TypeError('unknown size=' + size)
+
+    m = {'p': 'nbest.lmscore',
+         'r': 'nbest.reset.lmscore',
+         's': 'nbest.shuffle.lmscore'}
+
+    f = os.path.join(root, m[strategy])
+    return wb.LoadScore(f)
+
+
 def word_raw_dir():
     """PTB raw corpus"""
     abpath = os.path.split(os.path.realpath(__file__))[0]
@@ -976,6 +1014,7 @@ class NBest(object):
         self.total_word = 0
         self.best_1best = None
         self.best_log = None
+        self.wer_per_scale = []
 
         self.nbest_list_id = None
 
@@ -999,6 +1038,8 @@ class NBest(object):
         if self.gfscore is None:
             self.gfscore = np.zeros(len(self.lmscore))
 
+        self.wer_per_scale = []
+
         # tune the lmscale
         opt_wer = 1000
         for ac in [1]:
@@ -1016,6 +1057,7 @@ class NBest(object):
                                                   log_str_or_io=log_file,
                                                   sentence_process_fun=sentence_process_fun)
 
+                self.wer_per_scale.append([ac, lm, wer])
                 # print('acscale={}\tlmscale={}\twer={}\n'.format(acscale, lmscale, wer))
                 if wer < opt_wer:
                     opt_wer = wer
@@ -1049,12 +1091,17 @@ class NBest(object):
         if self.nbest_list_id is None:
             self.nbest_list_id = data.load_data(self.nbest, is_nbest=True)
 
-            # process the empty sequences
-            empty_len = int(data.beg_token_str is not None) + int(data.end_token_str is not None)
-            for s in self.nbest_list_id:
-                if len(s) == empty_len:
-                    s.insert(-1, data.get_end_token())
+            # # process the empty sequences
+            # empty_len = int(data.beg_token_str is not None) + int(data.end_token_str is not None)
+            # for s in self.nbest_list_id:
+            #     if len(s) == empty_len:
+            #         s.insert(-1, data.get_end_token())
         return self.nbest_list_id
+
+    def write_nbest_list(self, fwrite, data):
+        with open(fwrite, 'wt') as f:
+            for s in self.get_nbest_list(data):
+                f.write(' '.join([str(i) for i in s]) + '\n')
 
     def write_lmscore(self, fwrite):
         with open(fwrite, 'wt') as fout, open(self.nbest, 'rt') as fin:

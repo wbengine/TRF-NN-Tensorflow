@@ -598,6 +598,7 @@ class TrainOp(object):
     def __init__(self, loss, tvars,
                  optimize_method='sgd', max_grad_norm=None,
                  initial_lr=1.0,
+                 l2_reg=0,
                  name='train_op'):
         """
         Args:
@@ -634,9 +635,20 @@ class TrainOp(object):
                 optimizer = tf.train.AdamOptimizer(self._lr)
             elif optimize_method.lower() == 'adagrad':
                 optimizer = tf.train.AdagradOptimizer(self._lr)
-            else:
+            elif optimize_method.lower() == 'momentum':
+                optimizer = tf.train.MomentumOptimizer(self._lr, momentum=0.9)
+            elif optimize_method.lower() == 'sgd':
                 optimizer = tf.train.GradientDescentOptimizer(self._lr)
-            self._train_op = optimizer.apply_gradients(zip(grads, tvars), global_step=self.global_step)
+            else:
+                raise TypeError('[layers.TrainOp] undefined opt_method={}'.format(optimize_method))
+
+            grads_reg = []
+            for g, v in zip(grads, tvars):
+                if l2_reg > 0:
+                    g += l2_reg * v
+                grads_reg.append(g)
+
+            self._train_op = optimizer.apply_gradients(zip(grads_reg, tvars), global_step=self.global_step)
 
     @property
     def train_op(self):
@@ -646,7 +658,7 @@ class TrainOp(object):
         """set the learning rate"""
         session.run(self._update_lr, {self._new_lr: learning_rate})
 
-    def update(self, session, feed_dict):
+    def update(self, session, feed_dict=None):
         session.run(self._train_op, feed_dict)
 
 

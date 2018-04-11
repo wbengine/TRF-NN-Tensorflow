@@ -7,7 +7,7 @@ class Config(wb.Config):
     def __init__(self, vocab_size):
         self.vocab_size = vocab_size
         self.structure_type = 'cnn'  # 'cnn' or 'rnn' or 'mix'
-        self.embedding_dim = 128
+        self.embedding_dim = 256
         self.load_embedding_path = None
         # cnn structure
         self.cnn_filters = [(i, 128) for i in range(1, 6)]
@@ -18,11 +18,13 @@ class Config(wb.Config):
         self.cnn_batch_normalize = False
         self.cnn_skip_connection = True
         self.cnn_residual = False
+        self.cnn_final_activation = None  # None, relu, tanh, sigmod, skip(just summary the output)
         # lstm structure
         self.rnn_hidden_size = 200
         self.rnn_hidden_layers = 2
         self.rnn_type = 'blstm'  # 'lstm' or 'rnn' or 'blstm', 'brnn'
         self.rnn_predict = False
+        self.rnn_share_emb = True
         self.attention = False
         # for learning
         self.dropout = 0
@@ -47,7 +49,9 @@ class Config(wb.Config):
                     s += '_' + ''.join(['({}x{})'.format(w, d) for (w, d) in self.cnn_filters])
             if self.cnn_layers > 0:
                 s += '_({}x{})x{}'.format(self.cnn_width, self.cnn_hidden, self.cnn_layers)
-            s += '_{}'.format(self.cnn_activation)
+
+            if self.cnn_final_activation is not None:
+                s += '_{}'.format(self.cnn_final_activation)
 
         # rnn structure
         if self.structure_type[0:3] == 'rnn' or self.structure_type == 'mix':
@@ -94,6 +98,18 @@ class NetBase(object):
 
 
 class NetCNN(NetBase):
+    def get_activation_fun(self, name):
+        if name is None:
+            return None
+        elif name == 'relu':
+            return tf.nn.relu
+        elif name == 'tanh':
+            return tf.nn.tanh
+        elif name == 'sigmod':
+            return tf.nn.sigmoid
+        else:
+            raise TypeError('unknown activation {}'.format(self.config.cnn_activation))
+
     def activation(self, x, reuse, name='BN', add_activation=True):
         if self.config.cnn_batch_normalize:
             x = tf.contrib.layers.batch_norm(x, center=True, scale=True,
@@ -232,24 +248,27 @@ class NetCNN(NetBase):
         return inputs
 
     def output(self, _inputs, _lengths, reuse=None):
-        inputs = self.build_cnn(_inputs, _lengths, reuse)
+        inputs = self.build_cnn(_inputs, _lengths, reuse)  # [batch_size, max_length, dim]
 
         batch_size = tf.shape(_inputs)[0]
         max_len = tf.shape(_inputs)[1]
         len_mask = tf.sequence_mask(_lengths, maxlen=max_len, dtype=tf.float32)
 
         # final conv
-        conv_output = tf.layers.conv1d(
-            inputs=inputs,
-            filters=1,
-            kernel_size=1,
-            padding='valid',
-            activation=None,
-            use_bias=True,
-            reuse=reuse,
-            name='cnn_final'
-        )
-        outputs = tf.reshape(conv_output, [batch_size, -1])
+        if self.config.cnn_final_activation != 'skip':
+            conv_output = tf.layers.conv1d(
+                inputs=tf.nn.softmax(inputs, dim=-1),
+                filters=1,
+                kernel_size=1,
+                padding='valid',
+                activation=self.get_activation_fun(self.config.cnn_final_activation),
+                use_bias=True,
+                reuse=reuse,
+                name='cnn_final'
+            )
+            outputs = tf.reshape(conv_output, [batch_size, -1])
+        else:
+            outputs = tf.reduce_sum(inputs, axis=-1)
 
         outputs = outputs * len_mask
         outputs = tf.reduce_sum(outputs, axis=-1)  # of shape [batch_size]
@@ -339,6 +358,16 @@ class NetRnn(NetBase):
             outputs = outputs * len_mask
             outputs = tf.reduce_sum(outputs, axis=-1)  # of shape [batch_size]
 
+        elif self.config.rnn_share_emb:
+            outputs = 0
+            if outputs_fw is not None:
+                outputs += tf.reduce_sum(outputs_fw[:, 0:-1] * emb[:, 1:], axis=-1)
+            if outputs_bw is not None:
+                outputs += tf.reduce_sum(outputs_bw[:, 1:] * emb[:, 0:-1], axis=-1)
+
+            outputs *= tf.sequence_mask(_lengths - 1, maxlen=tf.shape(_inputs)[1] - 1, dtype=tf.float32)
+            outputs = tf.reduce_sum(outputs, axis=-1)  # of shape [batch_size]
+
         else:
 
             softmax_w = tf.get_variable('final_pred/w',
@@ -413,15 +442,89 @@ class NetRnn(NetBase):
     #     self.trainop.update(tf.get_default_session(), feed_dict)
 
 
-class NetMix(NetCNN, NetRnn):
+# class NetMix(NetCNN, NetRnn):
+#     # def __init__(self, config, is_training, reuse=None):
+#     #     NetCNN.__init__(self, config, is_training, reuse)
+#     #     NetRnn.__init__(self, config, is_training, reuse)
+#
+#     def output(self, _inputs, _lengths, reuse=None):
+#
+#         # CNN
+#         inputs = NetCNN.build_cnn(self, _inputs, _lengths, reuse)
+#
+#         # LSTM
+#         outputs_fw, outputs_bw, _, _ = NetRnn.compute_rnn(self, inputs, _lengths, reuse)
+#         inputs = tf.concat([outputs_fw, outputs_bw], axis=2)
+#
+#         if self.config.attention:
+#             attention_weight = layers.linear(inputs, 1, activate=tf.nn.sigmoid, name='attention_weight')
+#             # summate
+#             inputs *= attention_weight
+#
+#         # final layers
+#         len_mask = tf.sequence_mask(_lengths, maxlen=tf.shape(_inputs)[1], dtype=tf.float32)
+#         expand_len_mask = tf.expand_dims(len_mask, axis=-1)
+#         outputs = tf.reduce_sum(inputs * expand_len_mask, axis=1)  # [batch_size, dim]
+#         outputs = layers.linear(outputs, 1, name='final_linear')  # [batch_size, 1]
+#         outputs = tf.squeeze(outputs, axis=[-1])  # [batch_size]
+#
+#         return outputs, tf.get_collection(key=tf.GraphKeys.TRAINABLE_VARIABLES, scope=tf.get_variable_scope().name)
+
+class NetMix(NetCNN):
+    def compute_rnn(self, inputs, _lengths, reuse=True):
+        # LSTM Cells
+        # lstm cell
+        # Create LSTM cell
+        def one_lstm_cell():
+            if self.config.rnn_type.find('lstm') != -1:
+                c = tf.contrib.rnn.BasicLSTMCell(self.config.rnn_hidden_size, forget_bias=0., reuse=reuse)
+            elif self.config.rnn_type.find('rnn') != -1:
+                c = tf.contrib.rnn.BasicRNNCell(self.config.rnn_hidden_size, activation=tf.nn.tanh, reuse=reuse)
+            else:
+                raise TypeError('undefined rnn type = ' + self.config.type)
+            if self.is_training and self.config.dropout > 0:
+                c = tf.contrib.rnn.DropoutWrapper(c, output_keep_prob=1. - self.config.dropout)
+            return c
+
+        # vocab_size = self.config.vocab_size
+        # embedding_dim = self.config.embedding_dim
+
+        batch_size = tf.shape(inputs)[0]
+
+        # dropout
+        if self.is_training and self.config.dropout > 0:
+            inputs = tf.nn.dropout(inputs, keep_prob=1. - self.config.dropout)
+
+        # recurrent structure
+        if self.config.rnn_type[0].lower() == 'b':
+            cell_fw = tf.contrib.rnn.MultiRNNCell([one_lstm_cell() for _ in range(self.config.rnn_hidden_layers)])
+            cell_bw = tf.contrib.rnn.MultiRNNCell([one_lstm_cell() for _ in range(self.config.rnn_hidden_layers)])
+            outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw, cell_bw,
+                                                              inputs=inputs,
+                                                              sequence_length=_lengths,
+                                                              dtype=tf.float32)
+            outputs_fw = outputs[0]
+            outputs_bw = outputs[1]
+
+        else:
+            cell_fw = tf.contrib.rnn.MultiRNNCell([one_lstm_cell() for _ in range(self.config.rnn_hidden_layers)])
+            self._forward_init_state = cell_fw.zero_state(batch_size, tf.float32)
+            outputs, states = tf.nn.dynamic_rnn(cell_fw,
+                                                inputs=inputs,
+                                                sequence_length=_lengths - 1,
+                                                initial_state=self._forward_init_state)
+            outputs_fw = outputs
+            outputs_bw = None
+            self._forward_final_state = states
+
+        return outputs_fw, outputs_bw, states
 
     def output(self, _inputs, _lengths, reuse=None):
-
         # CNN
-        inputs = NetCNN.build_cnn(_inputs, _lengths, reuse)
+        inputs = self.build_cnn(_inputs, _lengths, reuse)
 
         # LSTM
-        outputs_fw, outputs_bw, _, _ = NetRnn.compute_rnn(inputs, _lengths, reuse)
+        outputs_fw, outputs_bw, _, = self.compute_rnn(inputs, _lengths, reuse)
         inputs = tf.concat([outputs_fw, outputs_bw], axis=2)
 
         if self.config.attention:
@@ -437,3 +540,5 @@ class NetMix(NetCNN, NetRnn):
         outputs = tf.squeeze(outputs, axis=[-1])  # [batch_size]
 
         return outputs, tf.get_collection(key=tf.GraphKeys.TRAINABLE_VARIABLES, scope=tf.get_variable_scope().name)
+
+

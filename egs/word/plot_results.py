@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import sys
 import os
 
-from model import wblib as wb
+from base import wblib as wb
 
 
 def read_log(fname):

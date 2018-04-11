@@ -18,7 +18,7 @@ class Config(wb.Config):
         self.max_len = data.get_max_len()
         self.vocab_size = data.get_vocab_size()
         self.pi_true = data.get_pi_true()
-        self.pi_0 = data.get_pi0()
+        self.pi_0 = self.pi_true
         self.beg_token = data.get_beg_token()
         self.end_token = data.get_end_token()
 
@@ -37,12 +37,17 @@ class Config(wb.Config):
         # for network features
         self.net_config = pot.NetConfig(data)
 
+        # for normalization
+        self.norm_config = 'linear'  # 'linear', 'one' or, 'multiple'
+
         # init zeta
         self.init_logz = [0, np.log(self.vocab_size)]
+        self.init_global_logz = 0
 
         # nce
         self.batch_size = 10
         self.noise_factor = 10
+        self.data_factor = 0  # the generated data rate
         self.noise_sampler = '2gram'
 
         # learning rate
@@ -68,7 +73,7 @@ class Config(wb.Config):
         return logz
 
     def __str__(self):
-        s = 'trf_nce{}'.format(self.noise_factor)
+        s = 'trf_nce_noise{}_data{}'.format(self.noise_factor, self.data_factor)
         if self.prior_model_path is not None:
             s += '_priorlm'
 
@@ -81,6 +86,8 @@ class Config(wb.Config):
 
         if self.data_sampler is not None:
             s += '_data{}'.format(self.data_sampler.split(':')[0])
+
+        s += '_logz' + self.norm_config
         return s
 
 
@@ -104,7 +111,16 @@ class TRF(object):
 
         # logZ
         # self.norm_const = pot.Norm(config, data, config.opt_logz_method)
-        self.norm_const = pot.NormLinear(config, data, config.opt_logz_method)
+        if self.config.norm_config == 'linear':
+            self.norm_const = pot.NormLinear(config, data, opt_method=config.opt_logz_method)
+        elif self.config.norm_config == 'one':
+            self.norm_const = None
+        elif self.config.norm_config == 'multiple':
+            self.norm_const = pot.Norm(config, data, opt_method=config.opt_logz_method)
+        else:
+            raise TypeError('undefined norm_config = ', self.config.norm_config)
+
+        self.norm_global = pot.NormOne(config.init_global_logz, opt_method=config.opt_logz_method)
 
         # noise sampler
         self.noise_sampler = noise.create_noise_sampler(config.noise_sampler, noise.Config(config),
@@ -157,6 +173,7 @@ class TRF(object):
         self.phi_feat.save(fname)
         self.phi_net.save(fname)
         self.norm_const.save(fname + '.norm')
+        self.norm_global.save(fname + '.global_norm')
 
     def restore(self, fname=None):
         if fname is None:
@@ -168,6 +185,7 @@ class TRF(object):
         self.phi_feat.restore(fname)
         self.phi_net.restore(fname)
         self.norm_const.restore(fname + '.norm')
+        self.norm_global.restore(fname + '.global_norm')
 
     def exist_model(self, fname=None):
         if fname is None:
@@ -181,6 +199,12 @@ class TRF(object):
         else:
             return self.phi_feat.get_value_for_train(seq_list) + self.phi_net.get_value_for_train(seq_list)
 
+    def normalize(self, logps, lengths):
+        if self.norm_const is not None:
+            return logps - self.norm_const.get_logz(lengths) - self.norm_global.get_logz(lengths)
+        else:
+            return logps - self.norm_global.get_logz(lengths)
+
     def logps(self, seq_list, for_eval=True):
         phi = self.phi(seq_list, for_eval)
         lengths = np.array([len(x) for x in seq_list])
@@ -188,8 +212,12 @@ class TRF(object):
         if np.any(lengths < self.config.min_len) or np.any(lengths > self.config.max_len):
             raise TypeError('min_len={}, max_len={} lens={}'.format(min(lengths), max(lengths), lengths))
 
-        logp_m = phi + self.priorlm.get_log_probs(seq_list) + \
-                 np.log(self.config.pi_true[lengths]) - self.norm_const.get_logz(lengths)
+        if self.config.norm_config != 'one':
+            logp_m = self.normalize(phi + self.priorlm.get_log_probs(seq_list) + np.log(self.config.pi_true[lengths]),
+                                    lengths)
+        else:
+            logp_m = self.normalize(phi + self.priorlm.get_log_probs(seq_list),
+                                    lengths)
 
         if self.config.interpolate_factor_with_noise is not None:
             logp_n = self.noise_sampler.noise_logps(seq_list)
@@ -199,6 +227,9 @@ class TRF(object):
             return logp
         else:
             return logp_m
+
+    def rescore(self, seq_list):
+        return -self.get_log_probs(seq_list)
 
     def get_log_probs(self, seq_list, is_norm=True):
 
@@ -249,8 +280,9 @@ class TRF(object):
         logz = np.zeros(max_len - self.config.min_len + 1)
         for l in range(self.config.min_len, max_len+1):
             x_batch = [x for x in sp.SeqIter(l, self.config.vocab_size,
-                                             beg_token=self.config.beg_token)]
-            logz[l-self.config.min_len] = sp.log_sum(self.get_log_probs(x_batch, False))
+                                             beg_token=self.config.beg_token,
+                                             end_token=self.config.end_token)]
+            logz[l-self.config.min_len] = sp.logsumexp(self.get_log_probs(x_batch, False))
         return logz
 
     def cmp_cluster_logps(self, logpm, logpn):
@@ -343,23 +375,40 @@ class TRF(object):
         with self.time_recoder.recode('update_net'):
             self.phi_net.update(seq_list, cluster_weights, cluster_m, learning_rate=self.cur_lr_net)
 
+    def shuffle_data(self, data_list, data_pn, noise_list, noise_pn):
+        seq_list = data_list + noise_list
+        seq_pn = np.concatenate([data_pn, noise_pn])
+        data_num = len(data_list)
+
+        # n = len(data_list)
+        # m = len(noise_list)
+        # seq_list = data_list[0: n//2] + noise_list[0: m//2] + data_list[n//2:] + noise_list[m//2:]
+        # seq_pn = np.concatenate([data_pn[0: n//2], noise_pn[0: m//2], data_pn[n//2:], noise_pn[m//2:]])
+        # data_num = n//2 + m//2
+
+        return seq_list, seq_pn, data_num
+
     def update(self, data_list):
 
         # generate noise samples
         with self.time_recoder.recode('sampling'):
 
-            if self.data_sampler is not None:
-                n = len(data_list)
+            if self.config.data_factor > 0:
+                if self.data_sampler is None:
+                    raise TypeError('[TRF.NCE] no data_sampler!!')
+
                 data_list_batch, _ = self.data_sampler.get()
-                data_list = data_list[0: n//2] + data_list_batch[0: n - n//2]
+                n = int(len(data_list) * self.config.data_factor)
+                assert len(data_list_batch) >= n
+                data_list = data_list + data_list_batch[0:n]
+
+            # data_list = self.noise_sampler.add_noise(data_list, 0.2)
             data_logpn = self.noise_sampler.noise_logps(data_list)
 
             sample_list, sample_logpn = self.noise_sampler.get(data_list)
-            assert len(sample_list) == self.config.batch_size * self.config.noise_factor
+            assert len(sample_list) == len(data_list) * self.config.noise_factor
 
-            seq_list = data_list + sample_list
-            noise_logps = np.concatenate([data_logpn, sample_logpn])
-            data_num = len(data_list)
+            seq_list, noise_logps, data_num = self.shuffle_data(data_list, data_logpn, sample_list, sample_logpn)
             seq_lens = [len(x) for x in seq_list]
 
         with self.time_recoder.recode('loss'):
@@ -377,6 +426,7 @@ class TRF(object):
 
         # update zeta
         self.norm_const.update(seq_list, cluster_weights, cluster_m=None, learning_rate=self.cur_lr_logz)
+        # self.norm_global.update(seq_list, cluster_weights, cluster_m=None, learning_rate=self.cur_lr_logz)
 
         if self.config.write_dbg:
             f = self.write_files.get('dbg')
@@ -404,7 +454,11 @@ class TRF(object):
         f.write('\n')
         f.flush()
 
-        print_infos = {'sumw': np.sum(cluster_weights)}
+        print_infos = OrderedDict()
+        print_infos['sumw'] = np.sum(np.abs(cluster_weights))
+        print_infos['logz_g'] = self.norm_global.logz
+        print_infos['true_logz0'] = self.true_logz(self.config.min_len)[0]
+        print_infos['nce_logz0'] = self.norm_const.get_logz(self.config.min_len)
         return loss, print_infos
 
     def initialize(self):
@@ -425,7 +479,8 @@ class TRF(object):
         print('[TRF] net_num  = {:,}'.format(self.phi_net.get_param_num()))
 
         # start sampler
-        self.noise_sampler.start()
+        if self.noise_sampler is not None:
+            self.noise_sampler.start()
         if self.data_sampler is not None and self.data_sampler != self.noise_sampler:
             self.data_sampler.start()
 
@@ -541,8 +596,12 @@ class TRF(object):
             if operation is not None:
                 operation.run(step, epoch)
 
+        self.save()
         # stop the sub-process
-        self.noise_sampler.release()
+        if self.noise_sampler is not None:
+            self.noise_sampler.release()
+        if self.data_sampler is not None and self.data_sampler != self.noise_sampler:
+            self.data_sampler.release()
 
 
 class DefaultOps(wb.Operation):
@@ -550,7 +609,7 @@ class DefaultOps(wb.Operation):
         self.m = m
         self.scale_vec = scale_vec
 
-        if isinstance(nbest_or_nbest_file_tuple, tuple):
+        if isinstance(nbest_or_nbest_file_tuple, (tuple, list)):
             print('[%s.%s] input the nbest files.' % (__name__, self.__class__.__name__))
             self.nbest_cmp = reader.NBest(*nbest_or_nbest_file_tuple)
         else:
@@ -560,33 +619,39 @@ class DefaultOps(wb.Operation):
         self.wer_next_epoch = 0
         self.wer_per_epoch = 1.0
         self.write_models = wb.mkdir(os.path.join(self.m.logdir, 'wer_results'))
+        self.write_log = os.path.join(self.m.logdir, 'wer_per_epoch.log')
+
+    def perform(self, step, epoch):
+        self.wer_next_epoch = int(epoch + self.wer_per_epoch)
+
+        # resocring
+        time_beg = time.time()
+        self.nbest_cmp.lmscore = self.m.rescore(self.nbest_cmp.get_nbest_list(self.m.data))
+        rescore_time = time.time() - time_beg
+
+        # compute wer
+        time_beg = time.time()
+        wer = self.nbest_cmp.wer(lmscale=self.scale_vec)
+        wer_time = time.time() - time_beg
+
+        if self.write_models is not None:
+            wb.WriteScore(self.write_models + '/epoch%.2f' % epoch + '.lmscore', self.nbest_cmp.lmscore)
+
+        print('epoch={:.2f} test_wer={:.2f} lmscale={} '
+              'rescore_time={:.2f}, wer_time={:.2f}'.format(
+            epoch, wer, self.nbest_cmp.lmscale,
+            rescore_time / 60, wer_time / 60))
+
+        res = wb.FRes(self.write_log)
+        res_name = 'epoch%.2f' % epoch
+        res.Add(res_name, ['lm-scale'], [self.nbest_cmp.lmscale])
+        res.Add(res_name, ['wer'], [wer])
 
     def run(self, step, epoch):
         super().run(step, epoch)
 
         if epoch >= self.wer_next_epoch:
-            self.wer_next_epoch = int(epoch + self.wer_per_epoch)
-
-            # resocring
-            time_beg = time.time()
-            self.nbest_cmp.lmscore = -self.m.get_log_probs(self.nbest_cmp.get_nbest_list(self.m.data))
-            rescore_time = time.time() - time_beg
-
-            # compute wer
-            time_beg = time.time()
-            wer = self.nbest_cmp.wer(lmscale=self.scale_vec)
-            wer_time = time.time() - time_beg
-
-            wb.WriteScore(self.write_models + '/epoch%.2f' % epoch + '.lmscore', self.nbest_cmp.lmscore)
-            print('epoch={:.2f} test_wer={:.2f} lmscale={} '
-                  'rescore_time={:.2f}, wer_time={:.2f}'.format(
-                   epoch, wer, self.nbest_cmp.lmscale,
-                   rescore_time / 60, wer_time / 60))
-
-            res = wb.FRes(os.path.join(self.m.logdir, 'wer_per_epoch.log'))
-            res_name = 'epoch%.2f' % epoch
-            res.Add(res_name, ['lm-scale'], [self.nbest_cmp.lmscale])
-            res.Add(res_name, ['wer'], [wer])
+            self.perform(step, epoch)
 
 
 class TRF2(TRF):

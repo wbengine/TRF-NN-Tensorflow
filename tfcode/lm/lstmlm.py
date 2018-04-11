@@ -11,14 +11,17 @@ from lm import stop
 
 
 class Config(wb.Config):
-    def __init__(self, data=None):
-        self.vocab_size = data.get_vocab_size() if data is not None else 10000
+    def __init__(self, data_or_vocab_size=1000, hidden_size=200, hidden_layers=2):
+        if isinstance(data_or_vocab_size, int):
+            self.vocab_size = data_or_vocab_size
+        else:
+            self.vocab_size = data_or_vocab_size.get_vocab_size()
         self.batch_size = 20
         self.step_size = 20
-        self.embedding_size = 200
-        self.hidden_layers = 2
-        self.hidden_size = 200
-        self.softmax_type = 'Softmax'  # can be 'Softmax' or 'AdaptiveSoftmax' or 'Shortlist'
+        self.embedding_size = hidden_size
+        self.hidden_layers = hidden_layers
+        self.hidden_size = hidden_size
+        self.softmax_type = 'Softmax'  # can be 'Softmax' or 'AdaptiveSoftmax' or 'Shortlist' or 'BNCE'
         self.adaptive_softmax_cutoff = [2000, self.vocab_size]  # for AdaptiveSoftmax, a list with the last value is vocab_size
         self.adaptive_softmax_project_factor = 4.  # for AdaptiveSoftmax a float >= 1.0
         self.softmax_pred_token_per_cluster = int(np.sqrt(self.vocab_size))  # used to accelerate the sampling, suggested as int(np.sqrt(vocab_size))
@@ -42,6 +45,51 @@ class Config(wb.Config):
         if self.optimize_method != 'SGD':
             s += '_' + self.optimize_method
         return s
+
+
+def state_to_list(state):
+    layers = len(state)
+    batch_size, hidden_size = np.shape(state[0].c)
+
+    state_list = [[None for _ in range(layers)] for _ in range(batch_size)]
+    for i in range(batch_size):
+        for j in range(layers):
+            c = state[j].c[i]
+            h = state[j].c[i]
+            state_list[i][j] = (c, h)
+    return state_list
+
+
+def state_to_tuple(state_list, batch_size):
+    input_batch = len(state_list)
+    layers = len(state_list[0])
+    hidden_size = len(state_list[0][0][0])
+
+    assert batch_size >= input_batch
+
+    state = []
+    for j in range(layers):
+        c = np.zeros((batch_size, hidden_size))
+        h = np.zeros((batch_size, hidden_size))
+        for i in range(input_batch):
+            c[i] = state_list[i][j][0]
+            h[i] = state_list[i][j][1]
+        state.append(tf.contrib.rnn.LSTMStateTuple(c, h))
+
+    return tuple(state)
+
+
+def zero_state_tuple(hidden_size, hidden_layers, batch_size):
+    state = []
+    for j in range(hidden_layers):
+        c = np.zeros((batch_size, hidden_size))
+        h = np.zeros((batch_size, hidden_size))
+        state.append(tf.contrib.rnn.LSTMStateTuple(c, h))
+    return tuple(state)
+
+
+def zero_state_list(hidden_size, hidden_layers, batch_size):
+    return state_to_list(zero_state_tuple(hidden_size, hidden_layers, batch_size))
 
 
 class Net(object):
@@ -74,6 +122,10 @@ class Net(object):
             self._targets = tf.placeholder(tf.int32, [batch_size, step_num], name='net_targets')
             self._lengths = tf.ones([batch_size], dtype=tf.int32) * tf.shape(self._inputs)[1]
             self._initial_state = cell.zero_state(batch_size, tf.float32)  # initial state
+
+            # used to create a zero state
+            # self._create_state_batch = tf.placeholder(tf.int32, name='create_state_batch')
+            # self._create_state = cell.zero_state(self._create_state_batch, tf.float32)
 
             # bulid network...
             self.softmax, self._final_state, self._hidden_output = self.output(cell,
@@ -193,6 +245,13 @@ class Net(object):
         """set the lstm state to zeros"""
         self.state = session.run(self._initial_state)
 
+    # def get_zero_state(self, session, batch_size):
+    #     return session.run(self._initial_state, {self._create_state_batch: batch_size})
+
+    def set_state(self, state):
+        """set the state"""
+        self.state = state
+
     def set_lr(self, session, learning_rate):
         """set the learning rate"""
         session.run(self._update_lr, {self._new_lr: learning_rate})
@@ -214,7 +273,7 @@ class Net(object):
             feed_dict[_h] = h
         return feed_dict
 
-    def run(self, session, x, y, ops=None):
+    def run(self, session, x, y, ops=None, length=None):
         """
         given the inputs x, targets y, initial LSTM state,
         run operations.
@@ -230,6 +289,7 @@ class Net(object):
                 which can be used to training the model.
                 There are not need to specifiy the self._final_state and
                 self._summary_op operation, as they are add automaticly
+            length: the sequence lengths
 
         Returns:
             the return of ops except:
@@ -242,6 +302,8 @@ class Net(object):
             self.set_zero_state(session)
 
         feed_dict = {self._inputs: x, self._targets: y}
+        if length is not None:
+            feed_dict[self._lengths] = length
         feed_dict.update(self.feed_state(self.state))  # feed state
 
         if ops is None:
@@ -369,7 +431,7 @@ class LM(object):
 
         return cost, logps
 
-    def sequence_update(self, session, seq_list):
+    def sequence_update(self, session, seq_list, include_residual_data=False):
         """
 
         Args:
@@ -379,15 +441,19 @@ class LM(object):
         Returns:
 
         """
-        max_len = np.max([len(x) for x in seq_list])
-        num = len(seq_list)
-        input_x = np.zeros((num, max_len), dtype='int32')
-        input_n = np.array([len(x) for x in seq_list], dtype='int32')
-        for i in range(num):
-            input_x[i][0: input_n[i]] = np.array(seq_list[i])
+        # max_len = np.max([len(x) for x in seq_list])
+        # num = len(seq_list)
+        # input_x = np.zeros((num, max_len), dtype='int32')
+        # input_n = np.array([len(x) for x in seq_list], dtype='int32')
+        # for i in range(num):
+        #     input_x[i][0: input_n[i]] = np.array(seq_list[i])
 
-        cost = self.train_net.run(session, input_x[:, 0: -1], input_x[:, 1:], input_n-1)
-        return cost
+        x_list, y_list = reader.produce_data_for_rnn(seq_list,
+                                                     self.train_net.config.batch_size,
+                                                     self.config.step_size,
+                                                     include_residual_data=include_residual_data)
+        for x, y in zip(x_list, y_list):
+            self.train_net.run(session, x, y)
 
     def save_emb(self, session):
         """
@@ -520,7 +586,41 @@ class LM(object):
     def train_batch_size(self):
         return self.config.batch_size
 
+    def get_zero_state_list(self, batch_size):
+        return zero_state_list(self.config.hidden_size, self.config.hidden_layers, batch_size)
+
+    def get_hidden_states(self, session, seqs, lengths=None):
+        """
+        compute the hidden state of the input sequences at each position
+        Args:
+            session: tf.Session()
+            seqs: a np.Array() of shape [batch_size, max_len]
+            lengths: 1d np.array of shape [batch_size] denoting the length of each sequences
+
+        Returns:
+            a 2d list, [batch_size, sequence_len+1],  s[i, j] denote the hidden state of i-th sequence at position j.
+        """
+
+        states_list = [self.get_zero_state_list(seqs.shape[0])]
+        for i in range(seqs.shape[1]):
+            _, _, states = self.simulate_h(session, seqs[:, i:i+1], 1, initial_state=states_list[-1])
+            states_list.append(states)
+
+        if lengths is None:
+            lengths = [seqs.shape[1]] * seqs.shape[0]
+
+        states_list2 = []
+        for i, n in enumerate(lengths):
+            a = [states_list[pos][i] for pos in range(n+1)]
+            states_list2.append(a)
+
+        return states_list2
+
     def simulate(self, session, initial_seqs, sample_nums, initial_state=False, context_size=None):
+        """define a old version for compatibility"""
+        return self.simulate_h(session, initial_seqs, sample_nums, initial_state, context_size)[0: -1]
+
+    def simulate_h(self, session, initial_seqs, sample_nums, initial_state=False, context_size=None):
         """
         given the initial_sequences, drow the following elements
 
@@ -528,7 +628,10 @@ class LM(object):
             session: tf.Session()
             initial_seqs: np.array, of shape (batch_size, sequence_len) of int32
             sample_nums: int or np.array, should >= 1
-            initial_state: if True, then set the initial state to Zeros
+            initial_state: False/True/lstm-state.
+                        If True, then set the initial state to Zeros.
+                        If False (default), using the saved state.
+                        If a list of lstm-state, then using the given state
             context_size: is not None and >=1 then only consinder the previous context_size values
 
         Returns:
@@ -554,19 +657,28 @@ class LM(object):
 
         final_seq_list = []
         final_logp_list = []
+        final_states = []
         for batch_beg in range(0, initial_seqs.shape[0], net.config.batch_size):
             seqs = initial_seqs[batch_beg: batch_beg + net.config.batch_size]
             pnum = net.config.batch_size - seqs.shape[0]
             seqs = np.pad(seqs, [[0, pnum], [0, 0]], 'edge')
 
-            if initial_state:
-                net.set_zero_state(session)
+            # set the state
+            if isinstance(initial_state, bool):
+                if initial_state:  # set zero state
+                    net.set_zero_state(session)
+            elif isinstance(initial_state, list):
+                # set the initial state
+                state_list = initial_state[batch_beg: batch_beg + net.config.batch_size]
+                state = state_to_tuple(state_list, net.config.batch_size)
+                net.set_state(state)
 
             # forward, to update states
             if context_size is not None and context_size >= 1:
                 net.run_predict(session, seqs[:, -context_size:-1])
             else:
-                net.run_predict(session, seqs[:, 0:-1])
+                if np.size(seqs[:, 0:-1]) != 0:  # not empty
+                    net.run_predict(session, seqs[:, 0:-1])
 
             # sample
             logps = np.zeros((net.config.batch_size, 0))
@@ -580,6 +692,7 @@ class LM(object):
 
             final_seq_list.append(seqs)
             final_logp_list.append(logps)
+            final_states += state_to_list(net.state)
 
         final_seqs = np.concatenate(final_seq_list, axis=0)[0: input_batch]
         final_logps = np.concatenate(final_logp_list, axis=0)[0: input_batch]
@@ -587,9 +700,13 @@ class LM(object):
         final_logp = np.array([np.sum(a[0: n]) for a, n in zip(final_logps, sample_nums)])
         final_logp += initial_logp
 
-        return final_seqs, final_logp
+        return final_seqs, final_logp, final_states[0: input_batch]
 
     def conditional(self, session, input_seqs, pos_vec, len_vec=None, initial_state=True, context_size=None):
+        """define a old version for compatibility"""
+        return self.conditional_h(session, input_seqs, pos_vec, len_vec, initial_state, context_size)[0]
+
+    def conditional_h(self, session, input_seqs, pos_vec, len_vec=None, initial_state=True, context_size=None):
         """
         calculate the conditional probabilities p(x[pos:] | x[0: pos])
 
@@ -599,7 +716,10 @@ class LM(object):
             pos_vec: integer/1-d vector, denoting the position of each sequenc
             len_vec: integer/1-d vector, denoting the length of each sequence.
                 if None, then the length is input_seqs.shape[1]
-            initial_state: if True, then set the initial state to Zeros
+            initial_state: False/True/lstm-state.
+                        If True, then set the initial state to Zeros.
+                        If False (default), using the saved state.
+                        If a list of lstm-state, then using the given state
             context_size: is not None and >=1 then only consinder the previous context_size values
 
         Returns:
@@ -628,15 +748,27 @@ class LM(object):
                 pos_vec[i] += 1
 
         final_list = []
+        final_states = []
         for batch_beg in range(0, input_seqs.shape[0], net.config.batch_size):
             seqs = input_seqs[batch_beg: batch_beg + net.config.batch_size]
-            pnum = net.config.batch_size - seqs.shape[0]
-            seqs = np.pad(seqs, [[0, pnum], [0, 0]], 'edge')
             local_pos = pos_vec[batch_beg: batch_beg + net.config.batch_size]
             local_len = len_vec[batch_beg: batch_beg + net.config.batch_size]
 
-            if initial_state:
-                net.set_zero_state(session)
+            # pad
+            pnum = net.config.batch_size - seqs.shape[0]
+            seqs = np.pad(seqs, [[0, pnum], [0, 0]], 'edge')
+            local_pos = np.pad(local_pos, [0, pnum], 'edge')
+            local_len = np.pad(local_len, [0, pnum], 'edge')
+
+            # set the state
+            if isinstance(initial_state, bool):
+                if initial_state:  # set zero state
+                    net.set_zero_state(session)
+            elif isinstance(initial_state, list):
+                # set the initial state
+                state_list = initial_state[batch_beg: batch_beg + net.config.batch_size]
+                state = state_to_tuple(state_list, net.config.batch_size)
+                net.set_state(state)
 
             if context_size is not None and context_size >= 1:
                 new_seqs = []
@@ -651,18 +783,19 @@ class LM(object):
                     new_pos.append(pos - cut_num)
                     new_len.append(l - cut_num)
                 seqs, _ = reader.produce_data_to_trf(new_seqs)
-                seqs = np.pad(seqs, [[0, pnum], [0, 0]], 'edge')
+                # seqs = np.pad(seqs, [[0, pnum], [0, 0]], 'edge')
                 local_pos = np.array(new_pos)
                 local_len = np.array(new_len)
 
             # run predict
             maxlen = np.max(local_len)
-            logps = net.run(session, seqs[:, 0:maxlen-1], seqs[:, 1:maxlen], [net.logps])  # the returned is the -logp
+            logps = net.run(session, seqs[:, 0:maxlen-1], seqs[:, 1:maxlen], [net.logps], length=local_len-1)  # the returned is the logp
 
             cond_logps = [logp[k-1: n-1].sum() for logp, k, n in zip(logps, local_pos, local_len)]
             final_list.append(cond_logps)
+            final_states += state_to_list(net.state)
 
-        return np.concatenate(final_list, axis=0)[0: input_batch] + initial_logps
+        return np.concatenate(final_list, axis=0)[0: input_batch] + initial_logps, final_states[0: input_batch]
 
     def train(self, session, data, write_model,
               write_to_res=None, is_shuffle=True,
@@ -691,7 +824,7 @@ class LM(object):
         if data.get_beg_token() is None:
             print('data valid: no beg token')
         else:
-            print('data contains beg-tokens, rm the beg-tokens in all data sets')
+            print('[warning] data contains beg-tokens!!!!')
             data.rm_beg_tokens_in_datas()
             print('result data:')
             print(data.datas[0][10])

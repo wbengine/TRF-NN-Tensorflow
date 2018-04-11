@@ -5,7 +5,7 @@ import numpy as np
 
 from base import *
 from lm import *
-from trf.sa import *
+from trf.isample import trf
 # from trf import trfjsa
 
 
@@ -21,17 +21,10 @@ def main(_):
     # lstm config
     config = trf.Config(data)
 
-    config.chain_num = 100
-    config.multiple_trial = 10
-    # config.auxiliary_model = 'lstm'
-    config.auxiliary_config.embedding_size = 32
-    config.auxiliary_config.hidden_size = 32
-    config.auxiliary_config.hidden_layers = 1
-    config.auxiliary_config.batch_size = 100
-    config.auxiliary_config.step_size = 10
-    config.auxiliary_config.learning_rate = 1.0
-
     config.feat_config.feat_type_file = '../../tfcode/feat/g4.fs'
+    config.feat_config.feat_cluster = None
+    config.feat_config.pre_compute_data_exp = False
+    config.net_config = None
 
     config.lr_feat = lr.LearningRateEpochDelay(1e-3)
     config.lr_net = lr.LearningRateEpochDelay(1e-3)
@@ -39,6 +32,7 @@ def main(_):
     config.opt_feat_method = 'adam'
     config.opt_net_method = 'adam'
     config.opt_logz_method = 'sgd'
+    config.write_dbg = True
 
     name = create_name(config)
     logdir = wb.mkdir('trf_sa/' + name, is_recreate=True)
@@ -51,24 +45,27 @@ def main(_):
     data.write_data(data.datas[1], logdir + '/valid.id')
     data.write_data(data.datas[2], logdir + '/test.id')
 
+    if config.feat_config.feat_cluster is not None:
+        data.word2vec(os.path.join(logdir, 'word2vec.txt'), dim=200, cnum=config.feat_config.feat_cluster)
+
     # wb.rmdir(logdirs)
-    with tf.Graph().as_default():
-        m = trf.TRF(config, data, logdir=logdir, device='/gpu:0')
 
-        sv = tf.train.Supervisor(logdir=os.path.join(logdir, 'logs'),
-                                 global_step=m.global_step)
-        sv.summary_writer.add_graph(tf.get_default_graph())  # write the graph to logs
-        session_config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
-        session_config.gpu_options.allow_growth = True
-        with sv.managed_session(config=session_config) as session:
+    m = trf.TRF(config, data, logdir=logdir, device='/gpu:0')
 
-            with session.as_default():
+    sv = tf.train.Supervisor(logdir=os.path.join(logdir, 'logs'),
+                             global_step=m.global_step)
+    sv.summary_writer.add_graph(tf.get_default_graph())  # write the graph to logs
+    session_config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
+    session_config.gpu_options.allow_growth = True
+    with sv.managed_session(config=session_config) as session:
 
-                # print(m.true_logz())
-                #
-                # m.test_sample()
+        with session.as_default():
 
-                m.train(operation=trf.DefaultOps(m, reader.word_nbest()))
+            # print(m.true_logz())
+            #
+            # m.test_sample()
+
+            m.train(operation=trf.DefaultOps(m, reader.word_nbest()))
 
 if __name__ == '__main__':
     # test_net()

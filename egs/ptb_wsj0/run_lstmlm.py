@@ -110,7 +110,7 @@ def main(_):
         t_beg = time.time()
         nbest.lmscore = lm.rescore(session, nbest_list)
         print('rescore time = {:.3f}m'.format((time.time() - t_beg) / 60))
-        wb.WriteScore('nbest.reset.lmscore', nbest.lmscore)
+        wb.WriteScore(work_dir + '/nbest.reset.lmscore', nbest.lmscore)
         wer = nbest.wer()
         print('wer={:.3f} lmscale={:.3f}'.format(wer, nbest.lmscale))
 

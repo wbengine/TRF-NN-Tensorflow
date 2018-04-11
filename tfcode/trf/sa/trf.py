@@ -7,7 +7,7 @@ from collections import OrderedDict
 from base import *
 from lm import *
 from trf.common import *
-from trf.sa import simulater, pot
+from . import simulater, pot, mcmc
 from trf.nce.pot import NormLinear
 
 
@@ -35,6 +35,7 @@ class Config(wb.Config):
         self.net_config = pot.NetConfig(data)
 
         # init zeta
+        self.norm_type = 'multiple'  # 'multiple' or 'linear'
         self.init_logz = self.get_initial_logz()
 
         # AugSA
@@ -44,6 +45,7 @@ class Config(wb.Config):
         self.multiple_trial = 10
         self.sample_sub = 10
         self.jump_width = 5
+        self.auxiliary_type = 'lstm'
         self.auxiliary_config = lstmlm.Config(data)
 
         # learning rate
@@ -76,6 +78,9 @@ class Config(wb.Config):
         if self.net_config is not None:
             s += '_' + str(self.net_config)
 
+        if self.norm_type != 'multiple':
+            s += '_norm' + self.norm_type
+
         return s
 
 
@@ -98,15 +103,18 @@ class TRF(object):
             if config.net_config is not None else pot.Base()
 
         # logZ
-        self.norm_const = pot.Norm(config, data, config.opt_logz_method)
+        if self.config.norm_type == 'multiple':
+            self.norm_const = pot.Norm(config, data, config.opt_logz_method)
+        elif self.config.norm_type == 'linear':
+            self.norm_const = pot.NormLinear(config, data, config.opt_logz_method)
         # self.norm_const = pot.NormFixed(config, data, config.opt_logz_method)
 
         # simulater
-        self.simulater = simulater.SimulaterLSTM(self.config.auxiliary_config, device=device)
+        # self.simulater = simulater.create_simulater(config, data, device=device)
         # length jump probabilities
-        self.gamma = sp.len_jump_distribution(self.config.min_len,
-                                              self.config.max_len,
-                                              self.config.jump_width)
+        # self.gamma = sp.len_jump_distribution(self.config.min_len,
+        #                                       self.config.max_len,
+        #                                       self.config.jump_width)
         # sample sequences
         self.sample_seq = reader.produce_data_to_trf(
             [sp.random_seq(self.config.min_len,
@@ -114,8 +122,16 @@ class TRF(object):
                            self.config.vocab_size,
                            beg_token=self.config.beg_token,
                            end_token=self.config.end_token,
-                           pi=self.config.pi_true)
+                           pi=self.config.pi_0)
              for _ in range(self.config.chain_num)])
+
+        self.simular = mcmc.RJMCMC(simulater=simulater.create_simulater(config, data, device=device),
+                                   gamma=sp.len_jump_distribution(self.config.min_len, self.config.max_len, self.config.jump_width),
+                                   multiple_trial=self.config.multiple_trial,
+                                   sample_sub=self.config.sample_sub,
+                                   end_token=self.config.end_token,
+                                   fun_logps=lambda x, n: self.logps(x, n, for_eval=False),
+                                   )
         # save the adjacent mcmc state
         # i.e. the adjacent mcmc sequences
         self.sample_mcmc = []
@@ -132,18 +148,19 @@ class TRF(object):
 
         # debuger
         self.write_files = wb.FileBank(os.path.join(logdir, name + '.dbg'))
+        self.simular.write_files = self.write_files
         # time recorder
         self.time_recoder = wb.clock()
         # default save name
         self.default_save_name = os.path.join(self.logdir, self.name + '.mod')
 
         # debug variables
-        self.lj_times = 1
-        self.lj_success = 0
-        self.lj_rate = 1
-        self.mv_times = 1
-        self.mv_success = 0
-        self.mv_rate = 1
+        # self.lj_times = 1
+        # self.lj_success = 0
+        # self.lj_rate = 1
+        # self.mv_times = 1
+        # self.mv_success = 0
+        # self.mv_rate = 1
         self.sample_cur_pi = np.zeros(self.config.max_len+1)     # current pi
         self.sample_acc_count = np.zeros(self.config.max_len+1)  # accumulated count
 
@@ -192,11 +209,16 @@ class TRF(object):
             fname = self.default_save_name
         return wb.exists(fname + '.norm')
 
-    def phi(self, input_x, input_n):
+    def phi(self, input_x, input_n, depend_pos=None):
         seq_list = reader.extract_data_from_array(input_x, input_n)
-        return self.phi_feat.get_value(seq_list) + self.phi_net.get_value(seq_list)
+        if depend_pos is not None:
+            return self.phi_feat.get_value_depend(seq_list, depend_pos) + \
+                   self.phi_net.get_value_depend(seq_list, depend_pos)
+        else:
+            return self.phi_feat.get_value(seq_list) + self.phi_net.get_value(seq_list)
 
     def logps(self, input_x, input_n, for_eval=True):
+
         phi = self.phi(input_x, input_n)
         seq_list = reader.extract_data_from_array(input_x, input_n)
 
@@ -242,6 +264,9 @@ class TRF(object):
 
         return nll, ppl
 
+    def rescore(self, seq_list):
+        return - self.get_log_probs(seq_list)
+
     def true_logz(self, max_len=None):
         if max_len is None:
             max_len = self.config.max_len
@@ -251,253 +276,253 @@ class TRF(object):
             x_batch = [x for x in sp.SeqIter(l, self.config.vocab_size,
                                              beg_token=self.config.beg_token,
                                              end_token=self.config.end_token)]
-            logz[l-self.config.min_len] = sp.log_sum(self.get_log_probs(x_batch, is_norm=False))
+            logz[l-self.config.min_len] = sp.logsumexp(self.get_log_probs(x_batch, is_norm=False))
         return logz
 
-    def local_jump_batch(self, input_x, input_n):
-
-        batch_size = len(input_x)
-        old_seqs = reader.extract_data_from_trf(input_x, input_n)
-        new_seqs = [None] * batch_size
-        acc_logps = np.zeros(batch_size)
-
-        next_n = np.array([np.random.choice(self.config.max_len+1, p=self.gamma[n]) for n in input_n])
-        jump_rate = np.array([np.log(self.gamma[j, k]) - np.log(self.gamma[k, j]) for j, k in zip(next_n, input_n)])
-
-        inc_index = np.where(next_n > input_n)[0]
-        des_index = np.where(next_n < input_n)[0]
-        equ_index = np.where(next_n == input_n)[0]
-
-        if len(equ_index) > 0:
-            acc_logps[equ_index] = 0
-            for i in equ_index:
-                new_seqs[i] = old_seqs[i]
-
-        if len(inc_index) > 0:
-            chain_num = len(inc_index)
-            init_seqs = input_x[inc_index]
-            init_lens = input_n[inc_index]
-            final_lens = next_n[inc_index]
-            cur_jump_rate = jump_rate[inc_index]
-
-            x_repeat = init_seqs.repeat(self.config.multiple_trial, axis=0)
-            n_repeat = init_lens.repeat(self.config.multiple_trial, axis=0)
-            m_repeat = final_lens.repeat(self.config.multiple_trial, axis=0)
-            y_multiple, logp_y_multiple = self.simulater.local_jump_propose(x_repeat, n_repeat-1, m_repeat-1)
-            # add end-tokens
-            y_multiple = np.pad(y_multiple, [[0, 0], [0, 1]], 'constant')
-            y_multiple[np.arange(y_multiple.shape[0]), m_repeat-1] = self.config.end_token
-            logw_multiple_y = self.logps(y_multiple, m_repeat, for_eval=False)
-
-            draw_idxs = [sp.log_sample(sp.log_normalize(x)) for x in logw_multiple_y.reshape((chain_num, -1))]
-            draw_idxs_flatten = [i * self.config.multiple_trial + draw_idxs[i] for i in range(len(draw_idxs))]
-            new_y = y_multiple[draw_idxs_flatten]
-            new_m = m_repeat[draw_idxs_flatten]
-            g_add = logp_y_multiple[draw_idxs_flatten]
-            assert np.all(new_m == final_lens)
-
-            cur_acc_logps = cur_jump_rate + \
-                            logsumexp(logw_multiple_y.reshape((chain_num, -1)), axis=-1) - \
-                            np.log(self.config.multiple_trial) - g_add - self.logps(init_seqs, init_lens, for_eval=False)
-
-            # summary results
-            acc_logps[inc_index] = cur_acc_logps
-            for i, y in zip(inc_index, reader.extract_data_from_trf(new_y, new_m)):
-                new_seqs[i] = y
-
-        if len(des_index) > 0:
-            chain_num = len(des_index)
-            init_seqs = input_x[des_index]
-            init_lens = input_n[des_index]
-            final_lens = next_n[des_index]
-            cur_jump_rate = jump_rate[des_index]
-
-            y_repeat = init_seqs.repeat(self.config.multiple_trial, axis=0)
-            n_repeat = init_lens.repeat(self.config.multiple_trial, axis=0)
-            m_repeat = final_lens.repeat(self.config.multiple_trial, axis=0)
-            x_multiple, logp_x_multiple = self.simulater.local_jump_propose(y_repeat, m_repeat-1, n_repeat-1)
-            # add end-token
-            x_multiple = np.pad(x_multiple, [[0, 0], [0, 1]], 'constant')
-            x_multiple[np.arange(x_multiple.shape[0]), n_repeat-1] = self.config.end_token
-            # set the initial_sequences
-            for i in range(chain_num):
-                # if len(x_multiple[i * self.config.multiple_trial]) != len(init_seqs[i]):
-                #     print(x_multiple[i * self.config.multiple_trial])
-                #     print(init_seqs[i])
-                n = n_repeat[i * self.config.multiple_trial]
-                x_multiple[i * self.config.multiple_trial, 0: n] = init_seqs[i, 0: init_lens[i]]
-            logw_multiple_x = self.logps(x_multiple, n_repeat, for_eval=False)
-
-            g_add = self.simulater.local_jump_condition(init_seqs, init_lens-1, final_lens-1)
-            new_y = np.array(init_seqs)
-            new_m = final_lens
-            new_y[np.arange(new_y.shape[0]), new_m-1] = self.config.end_token
-
-            cur_acc_logps = cur_jump_rate + \
-                            np.log(self.config.multiple_trial) + g_add + self.logps(new_y, new_m, for_eval=False) - \
-                            logsumexp(logw_multiple_x.reshape((chain_num, -1)), axis=-1)
-
-            # summary results
-            acc_logps[des_index] = cur_acc_logps
-            for i, y in zip(des_index, reader.extract_data_from_trf(new_y, new_m)):
-                new_seqs[i] = y
-
-        res_seqs = []
-        for i, (acc_logp, old_x, new_x) in enumerate(zip(acc_logps, old_seqs, new_seqs)):
-            self.lj_times += 1
-            try:
-                if sp.accept_logp(acc_logp):
-                    self.lj_success += 1
-                    res_seqs.append(new_x)
-                else:
-                    res_seqs.append(old_x)
-            except ValueError:
-                print('acc_logps=', acc_logps)
-                print('acc_logp=', acc_logp)
-                print('type=', type(acc_logps))
-                raise ValueError
-
-            out_line = '[local jump] {}->{} acc_logp={:.2f} '.format(
-                        len(old_x), len(new_x), float(acc_logp)
-                        )
-            out_line += 'acc_rate={:.2f}% '.format(100.0 * self.lj_success / self.lj_times)
-            out_line += '[{}/{}] '.format(self.lj_success, self.lj_times)
-            f = self.write_files.get('markov')
-            f.write(out_line + '\n')
-            f.flush()
-
-        return reader.produce_data_to_trf(res_seqs)
-
-    def markov_move_batch_sub(self, input_x, input_n, beg_pos, end_pos):
-        """
-        draw the values at positions x[beg_pos: beg_pos+sub_len]
-        using multiple-trial MH sampling
-        """
-        chain_num = len(input_x)
-
-        # propose multiple ys for each x in input_x
-        x_repeat = input_x.repeat(self.config.multiple_trial, axis=0).astype(input_x.dtype)
-        n_repeat = input_n.repeat(self.config.multiple_trial, axis=0).astype(input_n.dtype)
-
-        # propose y
-        multiple_y, logp_multiple_y = self.simulater.markov_move_propose(x_repeat, n_repeat-1,
-                                                                         beg_pos, end_pos)
-        # return logp_multiple_y
-        multiple_y[np.arange(len(multiple_y)), n_repeat-1] = self.config.end_token  # set end tokens
-        logw_multiple_y = self.phi(multiple_y, n_repeat) - logp_multiple_y
-        # logw_multiple_y = self.phi(multiple_y, n_repeat) -\
-        #                   self.simulater.markov_move_condition(self.get_session(),
-        #                                                        x_repeat, n_repeat-1, multiple_y,
-        #                                                        beg_pos, end_pos)
-
-        # sample y
-        draw_idxs = [sp.log_sample(sp.log_normalize(x)) for x in logw_multiple_y.reshape((chain_num, -1))]
-        draw_idxs_flatten = [i * self.config.multiple_trial + draw_idxs[i] for i in range(len(draw_idxs))]
-        new_y = multiple_y[draw_idxs_flatten]
-
-        # draw reference x
-        # as is independence sampling
-        # there is no need to generate new samples
-        logw_multiple_x = np.array(logw_multiple_y)
-        logw_multiple_x[draw_idxs_flatten] = self.phi(input_x, input_n) - \
-                                         self.simulater.markov_move_condition(input_x, input_n-1,
-                                                                              beg_pos, end_pos)
-
-        # compute the acceptance rate
-        weight_y = logsumexp(logw_multiple_y.reshape((chain_num, -1)), axis=-1)
-        weight_x = logsumexp(logw_multiple_x.reshape((chain_num, -1)), axis=-1)
-        acc_logps = weight_y - weight_x
-
-        # acceptance
-        acc_probs = np.exp(np.minimum(0., acc_logps))
-        accept = acc_probs >= np.random.uniform(size=acc_probs.shape)
-        res_x = np.where(accept.reshape(-1, 1), new_y, input_x)
-        self.mv_times += accept.size
-        self.mv_success += accept.sum()
-
-        out_line = '[Markov move] acc=' + log.to_str(acc_probs) + \
-                   ' weight_y=' + log.to_str(weight_y) + \
-                   ' weight_x=' + log.to_str(weight_x)
-        f = self.write_files.get('markov')
-        f.write(out_line + '\n')
-        f.flush()
-
-        return res_x, input_n
-
-    def markov_move_batch(self, input_x, input_n):
-
-        max_len = np.max(input_n)
-        sub_sent = self.config.sample_sub if self.config.sample_sub > 0 else max_len
-
-        # skip the beg / end tokens
-        for beg_pos in range(1, max_len-1, sub_sent):
-            # find all the sequence whose length is larger than beg_pos
-            idx = np.where(input_n-1 > beg_pos)[0]
-            # desicide the end position
-            end_pos = min(max_len-1, beg_pos + sub_sent)
-            local_x, local_n = self.markov_move_batch_sub(input_x[idx], input_n[idx], beg_pos, end_pos)
-
-            input_x[idx] = local_x
-            input_n[idx] = local_n
-
-        return input_x, input_n
-
-    def trans_dim_MH(self, input_x, input_n):
-
-        chain_num = len(input_x)
-
-        y_seqs = []
-        for i in range(chain_num):
-            y_seqs += self.noise_sampler.get()
-        y_multiple, y_len_multiple = reader.produce_data_to_trf(y_seqs)
-
-        logp_y_multiple = self.get_log_probs(y_seqs)
-        logg_y_multiple = self.noise_sampler.noise_logps(y_seqs)
-        logw_y_multiple = logp_y_multiple - logg_y_multiple
-
-        draw_idxs = [sp.log_sample(sp.log_normalize(x)) for x in logw_y_multiple.reshape((chain_num, -1))]
-        draw_idxs_flatten = [i * self.config.multiple_trial + draw_idxs[i] for i in range(len(draw_idxs))]
-        new_y = y_multiple[draw_idxs_flatten]
-        new_n = y_len_multiple[draw_idxs_flatten]
-
-        logw_x_multiple = np.array(logw_y_multiple)
-        x_seqs = reader.extract_data_from_trf(input_x, input_n)
-        logw_x_multiple[draw_idxs_flatten] = self.get_log_probs(x_seqs) - self.noise_sampler.noise_logps(x_seqs)
-
-        # compute the acceptance rate
-        weight_y = logsumexp(logw_y_multiple.reshape((chain_num, -1)), axis=-1)
-        weight_x = logsumexp(logw_x_multiple.reshape((chain_num, -1)), axis=-1)
-        acc_logps = weight_y - weight_x
-
-        # acceptance
-        acc_probs = np.exp(acc_logps)
-        accept = acc_probs >= np.random.uniform(size=acc_probs.shape)
-
-        x_list = reader.extract_data_from_trf(input_x, input_n)
-        y_list = reader.extract_data_from_trf(new_y, new_n)
-        res_list = [y if acc else x for acc, x, y in zip(accept, x_list, y_list)]
-
-        self.mv_times += accept.size
-        self.mv_success += accept.sum()
-
-        f = self.write_files.get('markov')
-        f.write('[Markov move] acc=' + to_str(acc_probs) + '\n')
-        f.write('   curr_n=' + to_str(input_n, '{}') + '\n')
-        f.write('   next_n=' + to_str(new_n, '{}') + '\n')
-        f.write('   weight_x=' + to_str(weight_x) + '\n')
-        f.write('   weight_y=' + to_str(weight_y) + '\n')
-        f.write('   logpw_x=' + to_str(logw_x_multiple[draw_idxs_flatten]) + '\n')
-        f.write('   logpw_y=' + to_str(logw_y_multiple[draw_idxs_flatten]) + '\n')
-        f.flush()
-
-        return reader.produce_data_to_trf(res_list)
+    # def local_jump_batch(self, input_x, input_n):
+    #
+    #     batch_size = len(input_x)
+    #     old_seqs = reader.extract_data_from_trf(input_x, input_n)
+    #     new_seqs = [None] * batch_size
+    #     acc_logps = np.zeros(batch_size)
+    #
+    #     next_n = np.array([np.random.choice(self.config.max_len+1, p=self.gamma[n]) for n in input_n])
+    #     jump_rate = np.array([np.log(self.gamma[j, k]) - np.log(self.gamma[k, j]) for j, k in zip(next_n, input_n)])
+    #
+    #     inc_index = np.where(next_n > input_n)[0]
+    #     des_index = np.where(next_n < input_n)[0]
+    #     equ_index = np.where(next_n == input_n)[0]
+    #
+    #     if len(equ_index) > 0:
+    #         acc_logps[equ_index] = 0
+    #         for i in equ_index:
+    #             new_seqs[i] = old_seqs[i]
+    #
+    #     if len(inc_index) > 0:
+    #         chain_num = len(inc_index)
+    #         init_seqs = input_x[inc_index]
+    #         init_lens = input_n[inc_index]
+    #         final_lens = next_n[inc_index]
+    #         cur_jump_rate = jump_rate[inc_index]
+    #
+    #         x_repeat = init_seqs.repeat(self.config.multiple_trial, axis=0)
+    #         n_repeat = init_lens.repeat(self.config.multiple_trial, axis=0)
+    #         m_repeat = final_lens.repeat(self.config.multiple_trial, axis=0)
+    #         y_multiple, logp_y_multiple = self.simulater.local_jump_propose(x_repeat, n_repeat-1, m_repeat-1)
+    #         # add end-tokens
+    #         y_multiple = np.pad(y_multiple, [[0, 0], [0, 1]], 'constant')
+    #         y_multiple[np.arange(y_multiple.shape[0]), m_repeat-1] = self.config.end_token
+    #         logw_multiple_y = self.logps(y_multiple, m_repeat, for_eval=False)
+    #
+    #         draw_idxs = [sp.log_sample(sp.log_normalize(x)) for x in logw_multiple_y.reshape((chain_num, -1))]
+    #         draw_idxs_flatten = [i * self.config.multiple_trial + draw_idxs[i] for i in range(len(draw_idxs))]
+    #         new_y = y_multiple[draw_idxs_flatten]
+    #         new_m = m_repeat[draw_idxs_flatten]
+    #         g_add = logp_y_multiple[draw_idxs_flatten]
+    #         assert np.all(new_m == final_lens)
+    #
+    #         cur_acc_logps = cur_jump_rate + \
+    #                         logsumexp(logw_multiple_y.reshape((chain_num, -1)), axis=-1) - \
+    #                         np.log(self.config.multiple_trial) - g_add - self.logps(init_seqs, init_lens, for_eval=False)
+    #
+    #         # summary results
+    #         acc_logps[inc_index] = cur_acc_logps
+    #         for i, y in zip(inc_index, reader.extract_data_from_trf(new_y, new_m)):
+    #             new_seqs[i] = y
+    #
+    #     if len(des_index) > 0:
+    #         chain_num = len(des_index)
+    #         init_seqs = input_x[des_index]
+    #         init_lens = input_n[des_index]
+    #         final_lens = next_n[des_index]
+    #         cur_jump_rate = jump_rate[des_index]
+    #
+    #         y_repeat = init_seqs.repeat(self.config.multiple_trial, axis=0)
+    #         n_repeat = init_lens.repeat(self.config.multiple_trial, axis=0)
+    #         m_repeat = final_lens.repeat(self.config.multiple_trial, axis=0)
+    #         x_multiple, logp_x_multiple = self.simulater.local_jump_propose(y_repeat, m_repeat-1, n_repeat-1)
+    #         # add end-token
+    #         x_multiple = np.pad(x_multiple, [[0, 0], [0, 1]], 'constant')
+    #         x_multiple[np.arange(x_multiple.shape[0]), n_repeat-1] = self.config.end_token
+    #         # set the initial_sequences
+    #         for i in range(chain_num):
+    #             # if len(x_multiple[i * self.config.multiple_trial]) != len(init_seqs[i]):
+    #             #     print(x_multiple[i * self.config.multiple_trial])
+    #             #     print(init_seqs[i])
+    #             n = n_repeat[i * self.config.multiple_trial]
+    #             x_multiple[i * self.config.multiple_trial, 0: n] = init_seqs[i, 0: init_lens[i]]
+    #         logw_multiple_x = self.logps(x_multiple, n_repeat, for_eval=False)
+    #
+    #         g_add = self.simulater.local_jump_condition(init_seqs, init_lens-1, final_lens-1)
+    #         new_y = np.array(init_seqs)
+    #         new_m = final_lens
+    #         new_y[np.arange(new_y.shape[0]), new_m-1] = self.config.end_token
+    #
+    #         cur_acc_logps = cur_jump_rate + \
+    #                         np.log(self.config.multiple_trial) + g_add + self.logps(new_y, new_m, for_eval=False) - \
+    #                         logsumexp(logw_multiple_x.reshape((chain_num, -1)), axis=-1)
+    #
+    #         # summary results
+    #         acc_logps[des_index] = cur_acc_logps
+    #         for i, y in zip(des_index, reader.extract_data_from_trf(new_y, new_m)):
+    #             new_seqs[i] = y
+    #
+    #     res_seqs = []
+    #     for i, (acc_logp, old_x, new_x) in enumerate(zip(acc_logps, old_seqs, new_seqs)):
+    #         self.lj_times += 1
+    #         try:
+    #             if sp.accept_logp(acc_logp):
+    #                 self.lj_success += 1
+    #                 res_seqs.append(new_x)
+    #             else:
+    #                 res_seqs.append(old_x)
+    #         except ValueError:
+    #             print('acc_logps=', acc_logps)
+    #             print('acc_logp=', acc_logp)
+    #             print('type=', type(acc_logps))
+    #             raise ValueError
+    #
+    #         out_line = '[local jump] {}->{} acc_logp={:.2f} '.format(
+    #                     len(old_x), len(new_x), float(acc_logp)
+    #                     )
+    #         out_line += 'acc_rate={:.2f}% '.format(100.0 * self.lj_success / self.lj_times)
+    #         out_line += '[{}/{}] '.format(self.lj_success, self.lj_times)
+    #         f = self.write_files.get('markov')
+    #         f.write(out_line + '\n')
+    #         f.flush()
+    #
+    #     return reader.produce_data_to_trf(res_seqs)
+    #
+    # def markov_move_batch_sub(self, input_x, input_n, beg_pos, end_pos):
+    #     """
+    #     draw the values at positions x[beg_pos: beg_pos+sub_len]
+    #     using multiple-trial MH sampling
+    #     """
+    #     chain_num = len(input_x)
+    #
+    #     # propose multiple ys for each x in input_x
+    #     x_repeat = input_x.repeat(self.config.multiple_trial, axis=0).astype(input_x.dtype)
+    #     n_repeat = input_n.repeat(self.config.multiple_trial, axis=0).astype(input_n.dtype)
+    #
+    #     # propose y
+    #     multiple_y, logp_multiple_y = self.simulater.markov_move_propose(x_repeat, n_repeat-1,
+    #                                                                      beg_pos, end_pos)
+    #     # return logp_multiple_y
+    #     multiple_y[np.arange(len(multiple_y)), n_repeat-1] = self.config.end_token  # set end tokens
+    #     logw_multiple_y = self.phi(multiple_y, n_repeat) - logp_multiple_y
+    #     # logw_multiple_y = self.phi(multiple_y, n_repeat) -\
+    #     #                   self.simulater.markov_move_condition(self.get_session(),
+    #     #                                                        x_repeat, n_repeat-1, multiple_y,
+    #     #                                                        beg_pos, end_pos)
+    #
+    #     # sample y
+    #     draw_idxs = [sp.log_sample(sp.log_normalize(x)) for x in logw_multiple_y.reshape((chain_num, -1))]
+    #     draw_idxs_flatten = [i * self.config.multiple_trial + draw_idxs[i] for i in range(len(draw_idxs))]
+    #     new_y = multiple_y[draw_idxs_flatten]
+    #
+    #     # draw reference x
+    #     # as is independence sampling
+    #     # there is no need to generate new samples
+    #     logw_multiple_x = np.array(logw_multiple_y)
+    #     logw_multiple_x[draw_idxs_flatten] = self.phi(input_x, input_n) - \
+    #                                      self.simulater.markov_move_condition(input_x, input_n-1,
+    #                                                                           beg_pos, end_pos)
+    #
+    #     # compute the acceptance rate
+    #     weight_y = logsumexp(logw_multiple_y.reshape((chain_num, -1)), axis=-1)
+    #     weight_x = logsumexp(logw_multiple_x.reshape((chain_num, -1)), axis=-1)
+    #     acc_logps = weight_y - weight_x
+    #
+    #     # acceptance
+    #     acc_probs = np.exp(np.minimum(0., acc_logps))
+    #     accept = acc_probs >= np.random.uniform(size=acc_probs.shape)
+    #     res_x = np.where(accept.reshape(-1, 1), new_y, input_x)
+    #     self.mv_times += accept.size
+    #     self.mv_success += accept.sum()
+    #
+    #     out_line = '[Markov move] acc=' + log.to_str(acc_probs) + \
+    #                ' weight_y=' + log.to_str(weight_y) + \
+    #                ' weight_x=' + log.to_str(weight_x)
+    #     f = self.write_files.get('markov')
+    #     f.write(out_line + '\n')
+    #     f.flush()
+    #
+    #     return res_x, input_n
+    #
+    # def markov_move_batch(self, input_x, input_n):
+    #
+    #     max_len = np.max(input_n)
+    #     sub_sent = self.config.sample_sub if self.config.sample_sub > 0 else max_len
+    #
+    #     # skip the beg / end tokens
+    #     for beg_pos in range(1, max_len-1, sub_sent):
+    #         # find all the sequence whose length is larger than beg_pos
+    #         idx = np.where(input_n-1 > beg_pos)[0]
+    #         # desicide the end position
+    #         end_pos = min(max_len-1, beg_pos + sub_sent)
+    #         local_x, local_n = self.markov_move_batch_sub(input_x[idx], input_n[idx], beg_pos, end_pos)
+    #
+    #         input_x[idx] = local_x
+    #         input_n[idx] = local_n
+    #
+    #     return input_x, input_n
+    #
+    # def trans_dim_MH(self, input_x, input_n):
+    #
+    #     chain_num = len(input_x)
+    #
+    #     y_seqs = []
+    #     for i in range(chain_num):
+    #         y_seqs += self.noise_sampler.get()
+    #     y_multiple, y_len_multiple = reader.produce_data_to_trf(y_seqs)
+    #
+    #     logp_y_multiple = self.get_log_probs(y_seqs)
+    #     logg_y_multiple = self.noise_sampler.noise_logps(y_seqs)
+    #     logw_y_multiple = logp_y_multiple - logg_y_multiple
+    #
+    #     draw_idxs = [sp.log_sample(sp.log_normalize(x)) for x in logw_y_multiple.reshape((chain_num, -1))]
+    #     draw_idxs_flatten = [i * self.config.multiple_trial + draw_idxs[i] for i in range(len(draw_idxs))]
+    #     new_y = y_multiple[draw_idxs_flatten]
+    #     new_n = y_len_multiple[draw_idxs_flatten]
+    #
+    #     logw_x_multiple = np.array(logw_y_multiple)
+    #     x_seqs = reader.extract_data_from_trf(input_x, input_n)
+    #     logw_x_multiple[draw_idxs_flatten] = self.get_log_probs(x_seqs) - self.noise_sampler.noise_logps(x_seqs)
+    #
+    #     # compute the acceptance rate
+    #     weight_y = logsumexp(logw_y_multiple.reshape((chain_num, -1)), axis=-1)
+    #     weight_x = logsumexp(logw_x_multiple.reshape((chain_num, -1)), axis=-1)
+    #     acc_logps = weight_y - weight_x
+    #
+    #     # acceptance
+    #     acc_probs = np.exp(acc_logps)
+    #     accept = acc_probs >= np.random.uniform(size=acc_probs.shape)
+    #
+    #     x_list = reader.extract_data_from_trf(input_x, input_n)
+    #     y_list = reader.extract_data_from_trf(new_y, new_n)
+    #     res_list = [y if acc else x for acc, x, y in zip(accept, x_list, y_list)]
+    #
+    #     self.mv_times += accept.size
+    #     self.mv_success += accept.sum()
+    #
+    #     f = self.write_files.get('markov')
+    #     f.write('[Markov move] acc=' + to_str(acc_probs) + '\n')
+    #     f.write('   curr_n=' + to_str(input_n, '{}') + '\n')
+    #     f.write('   next_n=' + to_str(new_n, '{}') + '\n')
+    #     f.write('   weight_x=' + to_str(weight_x) + '\n')
+    #     f.write('   weight_y=' + to_str(weight_y) + '\n')
+    #     f.write('   logpw_x=' + to_str(logw_x_multiple[draw_idxs_flatten]) + '\n')
+    #     f.write('   logpw_y=' + to_str(logw_y_multiple[draw_idxs_flatten]) + '\n')
+    #     f.flush()
+    #
+    #     return reader.produce_data_to_trf(res_list)
 
     def sample(self, input_x, input_n):
         with self.time_recoder.recode('local_jump'):
-            input_x, input_n = self.local_jump_batch(input_x, input_n)
+            input_x, input_n = self.simular.local_jump(input_x, input_n)
 
         with self.time_recoder.recode('markov_move'):
-            input_x, input_n = self.markov_move_batch(input_x, input_n)
+            input_x, input_n = self.simular.markov_move(input_x, input_n)
 
         return input_x, input_n
 
@@ -511,31 +536,19 @@ class TRF(object):
         Returns:
             a list of n sequences
         """
-        self.lj_times = 0
-        self.lj_success = 0
-        self.mv_times = 0
-        self.mv_success = 0
+        self.simular.reset_dbg()
 
         seq_list = []
         for i in range(n//self.config.chain_num):
             self.sample_seq = self.sample(*self.sample_seq)
             seq_list += reader.extract_data_from_trf(*self.sample_seq)   # copy the sequence
 
-        if self.lj_times > 0:
-            self.lj_rate = 0.9 * self.lj_rate + 0.1 * (self.lj_success / self.lj_times)
-        if self.mv_times > 0:
-            self.mv_rate = 0.9 * self.mv_rate + 0.1 * (self.mv_success / self.mv_times)
+        self.simular.update_dbg()
 
         with self.time_recoder.recode('write_sample'):
             f = self.write_files.get('sample')
             for x in seq_list:
                 log.write_seq(f, x)
-
-            f = self.write_files.get('mcmc')
-            for x, n in self.sample_mcmc:
-                seqs = reader.extract_data_from_trf(x, n)
-                f.write('\n'.join([str(a) for a in seqs]) + '\n')
-            f.flush()
 
         return seq_list
 
@@ -590,6 +603,11 @@ class TRF(object):
             time_since_beg = time.time() - time_beg
             print('t={} time={:.2f} time_per_step={:.2f}'.format(t, time_since_beg, time_since_beg/(t+1)))
 
+    def update_lr(self, step, epoch):
+        self.cur_lr_feat = self.config.lr_feat.get_lr(step + 1, epoch)
+        self.cur_lr_net = self.config.lr_net.get_lr(step + 1, epoch)
+        self.cur_lr_logz = self.config.lr_logz.get_lr(step + 1, epoch)
+
     def update(self, data_list, sample_list):
 
         # compute the scalars
@@ -616,9 +634,9 @@ class TRF(object):
         self.norm_const.set_logz1(self.true_logz(self.config.min_len)[0])
 
         # update simulater
-        if self.simulater is not None:
+        if self.simular is not None:
             with self.time_recoder.recode('update_simulater'):
-                self.simulater.update(sample_list)
+                self.simular.update(sample_list)
 
         # update dbg info
         self.sample_cur_pi.fill(0)
@@ -691,9 +709,7 @@ class TRF(object):
             # update paramters
             with self.time_recoder.recode('update'):
                 # learining rate
-                self.cur_lr_feat = self.config.lr_feat.get_lr(step+1, epoch)
-                self.cur_lr_net = self.config.lr_net.get_lr(step+1, epoch)
-                self.cur_lr_logz = self.config.lr_logz.get_lr(step+1, epoch)
+                self.update_lr(step, epoch)
                 # update
                 self.update(data_list, sample_list)
 
@@ -707,7 +723,7 @@ class TRF(object):
             with self.time_recoder.recode('eval_train_nll'):
                 model_train_nll.append(self.eval(data_list)[0])
             with self.time_recoder.recode('eval_kl_dis'):
-                kl_distance.append(self.simulater.eval(sample_list)[0] - self.eval(sample_list, for_eval=False)[0])
+                kl_distance.append(self.simular.eval(sample_list)[0] - self.eval(sample_list, for_eval=False)[0])
 
             # print
             if epoch >= print_next_epoch:
@@ -727,8 +743,8 @@ class TRF(object):
                 info['lr_feat'] = '{:.2e}'.format(self.cur_lr_feat)
                 info['lr_net'] = '{:.2e}'.format(self.cur_lr_net)
                 info['lr_logz'] = '{:.2e}'.format(self.cur_lr_logz)
-                info['lj_rate'] = self.lj_rate
-                info['mv_rate'] = self.mv_rate
+                info['lj_rate'] = self.simular.lj_rate
+                info['mv_rate'] = self.simular.mv_rate
                 info['train'] = np.mean(model_train_nll[-epoch_contain_step:])
                 info['valid'] = model_valid_nll
                 # info['test'] = model_test_nll
@@ -762,7 +778,7 @@ class DefaultOps(wb.Operation):
     def __init__(self, m, nbest_or_nbest_file_tuple):
         self.m = m
 
-        if isinstance(nbest_or_nbest_file_tuple, tuple):
+        if isinstance(nbest_or_nbest_file_tuple, tuple) or isinstance(nbest_or_nbest_file_tuple, list):
             print('[%s.%s] input the nbest files.' % (__name__, self.__class__.__name__))
             self.nbest_cmp = reader.NBest(*nbest_or_nbest_file_tuple)
         else:
@@ -794,6 +810,11 @@ class DefaultOps(wb.Operation):
                   'rescore_time={:.2f}, wer_time={:.2f}'.format(
                    epoch, wer, self.nbest_cmp.lmscale,
                    rescore_time / 60, wer_time / 60))
+
+            res = wb.FRes(os.path.join(self.m.logdir, 'results_nbest_wer.log'))
+            res_name = 'epoch%.2f' % epoch
+            res.Add(res_name, ['lm-scale'], [self.nbest_cmp.lmscale])
+            res.Add(res_name, ['wer'], [wer])
 
             res = wb.FRes(os.path.join(self.m.logdir, 'wer_per_epoch.log'))
             res_name = 'epoch%.2f' % epoch

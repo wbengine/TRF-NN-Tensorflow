@@ -1,0 +1,12 @@
+# ngram = ngramlm/KN5_00000
+# lstm  = lstm/lstm_withBegToken_512x2
+# qTRF  = trf_nce/trf_nce20_e128_cnn_(1to10)x128_(3x128)x3_relu_rnn_128x1_at_noise2gram_updatezeta_with_lstm_withBegToken_512x2_zeta1
+
+models         lm-scale  dt     et     dt_real  dt_simu  et_real  et_simu  
+KN5            14        4.910  6.578  5.030    4.790    7.375    5.781    
+LSTM           13        3.433  5.114  3.625    3.241    5.699    4.529    
+qTRF           14        3.367  5.016  3.533    3.201    5.675    4.357    
+KN5+LSTM       13        3.420  4.943  3.555    3.285    5.708    4.179    
+KN5+qTRF       13        3.372  4.871  3.525    3.219    5.540    4.202    
+KN5+LSTM+qTRF  13        3.261  4.782  3.422    3.101    5.437    4.128    
+LSTM+qTRF      13        3.396  5.079  3.588    3.204    5.731    4.427    

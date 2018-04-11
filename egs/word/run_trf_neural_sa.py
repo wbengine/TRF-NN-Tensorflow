@@ -11,7 +11,7 @@ import task
 
 class Opt(trf.DefaultOps):
     def __init__(self, trf_model):
-        super().__init__(trf_model, *task.get_nbest())
+        super().__init__(trf_model, task.get_nbest())
         self.per_epoch = 0.1
         self.next_epoch = 0
         self.out_logz = os.path.join(trf_model.logdir, 'logz.dbg')
@@ -38,7 +38,7 @@ def create_config(data):
     config.chain_num = 100
     config.multiple_trial = 10
     config.sample_batch_size = 100
-    # config.auxiliary_model = 'lstm'
+    config.auxiliary_type = '2gram'
     config.auxiliary_config.embedding_size = 32
     config.auxiliary_config.hidden_size = 32
     config.auxiliary_config.hidden_layers = 1
@@ -58,7 +58,7 @@ def create_config(data):
     config.feat_config = None
 
     # neural config
-    config.net_config.update(task.get_config_rnn(config.vocab_size))
+    config.net_config.update(task.get_config_cnn(config.vocab_size))
     config.net_config.cnn_skip_connection = False
 
     return config

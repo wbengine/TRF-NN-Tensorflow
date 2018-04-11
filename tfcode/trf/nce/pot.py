@@ -74,8 +74,11 @@ class FeatPhi(Base):
         self.opt_method = opt_method
 
         wftype, cftype = feat.separate_type(feat.read_feattype_file(self.config.feat_type_file))
-        self.wfeat = feat.FastFeats(wftype, sub_process_num=10)
-        # self.cfeat = feat.Feats(cftype)
+
+        if wb.is_linux():
+            self.wfeat = feat.FastFeats(wftype, sub_process_num=10)
+        else:
+            self.wfeat = feat.Feats(wftype)
 
         self.update_op = None
 
@@ -220,6 +223,10 @@ class Norm(object):
 
         self.logz += self.update_op.update(g, learning_rate)
 
+    def set_logz0(self, logz0):
+        self.logz += -self.logz[self.config.min_len] + logz0
+        self.logz[0: self.config.min_len] = 0
+
     def save(self, fname):
         with open(fname, 'wt') as f:
             f.write('len\tlogz\n')
@@ -248,7 +255,7 @@ class NormLinear(object):
         self.opt_method = opt_method
 
         self.var_a = config.init_logz[0]
-        self.var_b = config.init_logz[1]
+        self.var_b = config.init_logz[1] - config.init_logz[0]
 
         self.update_op = wb.ArrayUpdate([self.var_a, self.var_b], {'name': self.opt_method})
 
@@ -256,7 +263,13 @@ class NormLinear(object):
         if lengths is None:
             # return a logz array
             lengths = np.arange(0, self.config.max_len+1, dtype='int32')
-        return self.var_a + self.var_b * (lengths - 1)
+        else:
+            lengths = np.array(lengths)
+        return self.var_a + self.var_b * (lengths - self.config.min_len)
+
+    def set_logz0(self, logz0):
+        self.var_a = logz0
+        self.var_b = logz0
 
     def get_var(self):
         return [self.var_a, self.var_b]
@@ -274,7 +287,7 @@ class NormLinear(object):
         """
         lengths = np.array([len(x) for x in seq_list])
         grad_a = np.sum(cluster_weights)
-        grad_b = np.sum(cluster_weights * (lengths - 1))
+        grad_b = np.sum(cluster_weights * (lengths - self.config.min_len))
         return np.array([grad_a, grad_b])
 
     def get_variance(self, seq_list, cluster_m):
@@ -305,3 +318,48 @@ class NormLinear(object):
         with open(fname, 'rt') as f:
             self.var_a = float(f.readline().split('=')[-1])
             self.var_b = float(f.readline().split('=')[-1])
+
+
+class NormOne(object):
+    """
+    define the normalization constants logZ_l = a + b * l, l = 0, 2, ..., m-1
+    """
+    def __init__(self, init_logz, opt_method='sgd'):
+        self.opt_method = opt_method
+        self.logz = init_logz
+
+        self.update_op = wb.ArrayUpdate([self.logz], {'name': self.opt_method})
+
+    def get_logz(self, lengths=None):
+        return self.logz
+
+    def get_var(self):
+        return [self.logz]
+
+    def get_gradient(self, seq_list, cluster_weights):
+        """
+        g_a = \sum_x w(x)
+        g_b = \sum_x w(x) (l(x) - l_min)
+        Args:
+            seq_list:
+            cluster_weights:
+
+        Returns:
+
+        """
+        grad_a = np.sum(cluster_weights)
+        return np.array([grad_a])
+
+    def update(self, seq_list, cluster_weights, cluster_m=None, learning_rate=1.0):
+        g = self.get_gradient(seq_list, cluster_weights)
+
+        d = self.update_op.update(g, learning_rate)
+        self.logz += d[0]
+
+    def save(self, fname):
+        with open(fname, 'wt') as f:
+            f.write('logz={}\n'.format(self.logz))
+
+    def restore(self, fname):
+        with open(fname, 'rt') as f:
+            self.logz = float(f.readline().split('=')[-1])

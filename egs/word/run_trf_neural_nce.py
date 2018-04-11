@@ -4,13 +4,13 @@ import sys
 import numpy as np
 
 from base import *
-from trf.nce import *
+from trf.nce import trf_fixlen as trf
 import task
 
 
 class Opt(trf.DefaultOps):
     def __init__(self, trf_model):
-        super().__init__(trf_model, *task.get_nbest())
+        super().__init__(trf_model, task.get_nbest())
         self.per_epoch = 0.1
         self.next_epoch = 0
         self.out_logz = os.path.join(trf_model.logdir, 'logz.dbg')
@@ -21,23 +21,24 @@ class Opt(trf.DefaultOps):
         if epoch > self.next_epoch:
             self.next_epoch += self.per_epoch
 
-            with self.m.time_recoder.recode('true_logz'):
-                true_logz = self.m.true_logz(5)
-                nce_logz = self.m.norm_const.get_logz()
+            if self.m.config.min_len <= 5:
+                with self.m.time_recoder.recode('true_logz'):
+                    true_logz = self.m.true_logz(5)
+                    nce_logz = self.m.norm_const.get_logz()
 
-            with open(self.out_logz, 'at') as f:
-                f.write('step={} epoch={:.2f}'.format(step, epoch) + '\n')
-                f.write('nce=  ' + ' '.join(['{:.2f}'.format(i) for i in nce_logz]) + '\n')
-                f.write('true= ' + ' '.join(['{:.2f}'.format(i) for i in true_logz]) + '\n')
+                with open(self.out_logz, 'at') as f:
+                    f.write('step={} epoch={:.2f}'.format(step, epoch) + '\n')
+                    f.write('nce=  ' + ' '.join(['{:.2f}'.format(i) for i in nce_logz]) + '\n')
+                    f.write('true= ' + ' '.join(['{:.2f}'.format(i) for i in true_logz]) + '\n')
 
 
 def create_config(data):
     config = trf.Config(data)
-    config.write_dbg = False
+    config.write_dbg = True
     config.max_epoch = 100
-    config.batch_size = 20
+    config.batch_size = 100
     config.noise_factor = 10
-    config.noise_sampler = '2gram'
+    config.noise_sampler = '2gram_fixlen'
     config.lr_feat = lr.LearningRateEpochDelay(1e-3)
     config.lr_net = lr.LearningRateEpochDelay(1e-3)
     config.lr_logz = lr.LearningRateEpochDelay(1e-3)
@@ -63,7 +64,7 @@ def create_name(config):
 
 def main(_):
     data = reader.Data().load_raw_data(reader.word_raw_dir(),
-                                       add_beg_token='</s>', add_end_token='</s>',
+                                       add_beg_token='<s>', add_end_token='</s>',
                                        add_unknwon_token=None,
                                        min_length=None,
                                        )
@@ -77,6 +78,7 @@ def main(_):
 
     config.print()
     data.write_vocab(logdir + '/vocab.txt')
+    data.write_data(data.datas[0], logdir + '/train.id')
     data.write_data(data.datas[1], logdir + '/valid.id')
     data.write_data(data.datas[2], logdir + '/test.id')
 

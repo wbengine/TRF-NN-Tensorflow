@@ -56,17 +56,23 @@ def search_file(name):
 
 
 logs = [
-    'trf_sa/trf_sa10_e256_cnn_(1to10)x128_(3x128)x3_relu',
-    # 'trf_nce/trf_nce10_e256_cnn_(1to10)x128_(3x128)x3_relu_noise2gram',
-    'trf_nce/trf_nce10_e256_cnn_(1to10)x128_(3x128)x3_relu_noise2gram_samelen',
-    'trf_nce/trf_nce10_e256_cnn_(1to10)x128_(3x128)x3_relu_noise2gram_samelen_adagrad',
+    # 'trf_sa/trf_sa10_e256_cnn_(1to10)x128_(3x128)x3_relu',
+    # 'trf_sa/trf_sa10_e200_blstm_200x2_pretrain',
+    # 'trf_sa/trf_sa10_featg4_c200_L2reg1.00e-05',
+    # 'trf_is/trf_IS_featg4_c200_L2reg1.00e-05_noise2gram',  # donot normalize the scalar
+    # 'trf_is/trf_IS_featg4_c200_L2reg1.00e-05_noise2gram_save',  # donot normalize the scalar
+    # 'trf_sa/trf_IS_featg4_c200_L2reg1.00e-05_noise2gram',  # normalize the scalar
+    'trf_is/trf_IS_e256_cnn_(1to10)x128_(3x128)x3',
+    # 'trf_sa/trf_sa100_featg4_c200_L2reg1.00e-05',
+    'trf_is/trf_IS_featg4_c200_L2reg1.00e-05',
+    # 'trf_nce/trf_nce10_e200_blstm_200x2_noise2gram_logz_linear'
     ]
-baseline_name = ['KN5', 'lstm_e200_h200x2']
+baseline_name = ['KN5_000', 'lstm_e200_h200x2']
 colors = ['r', 'g', 'b', 'k', 'c', 'y']
 baseline = wb.FRes('results.txt')
 
 
-def smooth(a, width=1):
+def smooth(a, width=100):
     b = np.array(a)
     for i in range(len(a)):
         b[i] = np.mean(a[max(0, i-width): i+1])
@@ -149,7 +155,46 @@ def plot_time():
     plt.show()
 
 
+def plot_pi():
+    plt.figure()
+    log = logs[-1]
+
+    steps = []
+    sample_pi = []
+    true_pi = []
+    with open(os.path.join(log, 'trf.dbg.zeta')) as f:
+        for line in f:
+            i = line.find('=')
+            if i == -1:
+                continue
+
+            label = line[0: i]
+            data = line[i+1:]
+            if label.find('step') == 0:
+                steps.append(int(data))
+            elif label.find('all_pi') == 0:
+                a = [float(i) for i in data.split()]
+                sample_pi.append(a)
+            elif label.find('pi_0') == 0:
+                a = [float(i) for i in data.split()]
+                true_pi.append(a)
+            else:
+                pass
+
+    sample_pi = np.array(sample_pi)
+    true_pi = np.array(true_pi)
+
+    for i in range(sample_pi.shape[1]):
+        plt.plot(steps, sample_pi[:, i] - true_pi[:, i])
+
+    plt.title('pi')
+    plt.xlabel('steps')
+
+    plt.show()
+
+
 if __name__ == '__main__':
+    plot_pi()
     print(plot_ll())
     print(plot_wer())
 

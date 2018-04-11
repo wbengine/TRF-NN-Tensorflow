@@ -2,6 +2,7 @@
 
 srilm_dir='./srilm'
 root_dir=$(pwd)
+package_name='srilm-1.7.1.tar.gz'
 
 #install srilm
 cd ${root_dir}/${srilm_dir}

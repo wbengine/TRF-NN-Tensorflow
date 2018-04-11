@@ -4,6 +4,16 @@ from base import *
 from lm import *
 
 
+def create_simulater(config, data, device='/gpu:0'):
+    if config.auxiliary_type.lower() == 'lstm':
+        return SimulaterLSTM(config.auxiliary_config, device)
+    elif config.auxiliary_type.lower().find('gram') != -1:
+        order = int(config.auxiliary_type[0:1])
+        return SimulaterNgramFixed(config, data, order)
+    else:
+        raise TypeError('Unknown auxiliary type: {}'.format(config.auxiliary_type))
+
+
 class Simulater(object):
     """
     Simulater is a auxiliary distribution used in Joint SA algorithms
@@ -125,3 +135,47 @@ class SimulaterLSTM(Simulater):
         with self.time_recoder.recode('eval'):
             res = self.model.eval(tf.get_default_session(), seq_list, net=self.model.valid_net)
         return res
+
+
+class SimulaterNgramFixed(Simulater):
+    def __init__(self, config, data, order):
+        super().__init__()
+
+        self.ngram = ngram.Ngram(order, config.vocab_size)
+        self.ngram.create_from_corpus(data.datas[0])
+
+    def local_jump_propose(self, inputs, lengths, next_lengths):
+        x_list = reader.extract_data_from_array(inputs, lengths)
+
+        y_list, y_logp = self.ngram.generate(x_list, np.array(next_lengths) - np.array(lengths))
+
+        res_y, _ = reader.produce_data_to_array(y_list)
+        res_logp = np.array(y_logp)
+
+        return res_y, res_logp
+
+    def local_jump_condition(self, inputs, lengths, next_lengths):
+        x_list = reader.extract_data_from_array(inputs, lengths)
+        logp = self.ngram.condition(x_list, next_lengths)
+
+        return np.array(logp)
+
+    def markov_move_propose(self, inputs, lengths, beg_pos, end_pos):
+        sample_nums = np.minimum(lengths, end_pos)-beg_pos
+        x_list = reader.extract_data_from_array(inputs, beg_pos)
+        y_list, y_logp = self.ngram.generate(x_list, sample_nums)
+        nexts, _ = reader.produce_data_to_array(y_list)
+
+        nexts = np.concatenate([nexts, inputs[:, nexts.shape[1]:]], axis=-1)
+        return nexts, np.array(y_logp)
+
+    def markov_move_condition(self, inputs, lengths, beg_pos, end_pos):
+        x_list = reader.extract_data_from_array(inputs, lengths)
+        logp = self.ngram.condition(x_list, beg_pos, np.minimum(lengths, end_pos))
+
+        return np.array(logp)
+
+    def eval(self, seq_list):
+        """return (NLL, PPL)"""
+        return self.ngram.eval(seq_list)
+

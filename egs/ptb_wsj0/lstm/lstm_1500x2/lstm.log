@@ -1,0 +1,724 @@
+../egs/ptb_wsj0/lstm/lstm_1500x2
+{
+    "batch_size": 20,
+    "dropout": 0.65,
+    "epoch_num": 55,
+    "hidden_layers": 2,
+    "hidden_size": 1500,
+    "init_weight": 0.04,
+    "learning_rate": 1.0,
+    "lr_decay": 0.8695652173913044,
+    "lr_decay_when": 14,
+    "max_grad_norm": 10,
+    "step_size": 35,
+    "vocab_size": 10000
+}
+epoch=0.099 w/s=621.91 train_ppl=1501434.373 lr=1.000 time_since_begin=2.48m
+epoch=0.199 w/s=622.59 train_ppl=402449.053 lr=1.000 time_since_begin=4.95m
+epoch=0.298 w/s=621.08 train_ppl=227389.922 lr=1.000 time_since_begin=7.44m
+epoch=0.398 w/s=621.20 train_ppl=157149.978 lr=1.000 time_since_begin=9.92m
+epoch=0.497 w/s=620.77 train_ppl=121927.749 lr=1.000 time_since_begin=12.40m
+epoch=0.597 w/s=619.99 train_ppl=96330.710 lr=1.000 time_since_begin=14.90m
+epoch=0.696 w/s=618.71 train_ppl=79618.105 lr=1.000 time_since_begin=17.42m
+epoch=0.796 w/s=618.46 train_ppl=68152.691 lr=1.000 time_since_begin=19.92m
+epoch=0.895 w/s=618.72 train_ppl=59154.062 lr=1.000 time_since_begin=22.40m
+epoch=0.995 w/s=619.15 train_ppl=52227.059 lr=1.000 time_since_begin=24.87m
+epoch=1 ppl-valid=252.339 ppl-test=246.542
+epoch=1.099 w/s=561.42 train_ppl=32873.166 lr=1.000 time_since_begin=30.32m
+epoch=1.199 w/s=567.25 train_ppl=27357.347 lr=1.000 time_since_begin=32.72m
+epoch=1.298 w/s=572.54 train_ppl=23267.300 lr=1.000 time_since_begin=35.11m
+epoch=1.398 w/s=576.39 train_ppl=20343.008 lr=1.000 time_since_begin=37.55m
+epoch=1.497 w/s=579.82 train_ppl=18158.262 lr=1.000 time_since_begin=39.98m
+epoch=1.597 w/s=583.36 train_ppl=16370.690 lr=1.000 time_since_begin=42.38m
+epoch=1.696 w/s=586.91 train_ppl=15074.197 lr=1.000 time_since_begin=44.75m
+epoch=1.796 w/s=589.91 train_ppl=14009.283 lr=1.000 time_since_begin=47.13m
+epoch=1.895 w/s=591.94 train_ppl=13022.937 lr=1.000 time_since_begin=49.57m
+epoch=1.995 w/s=593.45 train_ppl=12218.731 lr=1.000 time_since_begin=52.04m
+epoch=2 ppl-valid=179.461 ppl-test=174.574
+epoch=2.099 w/s=567.31 train_ppl=11487.267 lr=1.000 time_since_begin=57.29m
+epoch=2.199 w/s=570.58 train_ppl=10930.870 lr=1.000 time_since_begin=59.66m
+epoch=2.298 w/s=573.41 train_ppl=10388.551 lr=1.000 time_since_begin=62.06m
+epoch=2.398 w/s=575.95 train_ppl=9919.520 lr=1.000 time_since_begin=64.46m
+epoch=2.497 w/s=578.40 train_ppl=9498.549 lr=1.000 time_since_begin=66.85m
+epoch=2.597 w/s=580.62 train_ppl=9103.136 lr=1.000 time_since_begin=69.24m
+epoch=2.696 w/s=582.69 train_ppl=8783.683 lr=1.000 time_since_begin=71.64m
+epoch=2.796 w/s=584.79 train_ppl=8507.821 lr=1.000 time_since_begin=74.02m
+epoch=2.895 w/s=586.91 train_ppl=8204.157 lr=1.000 time_since_begin=76.37m
+epoch=2.995 w/s=588.78 train_ppl=7941.089 lr=1.000 time_since_begin=78.74m
+epoch=3 ppl-valid=148.247 ppl-test=144.136
+epoch=3.099 w/s=571.36 train_ppl=7667.404 lr=1.000 time_since_begin=83.98m
+epoch=3.199 w/s=573.49 train_ppl=7463.789 lr=1.000 time_since_begin=86.36m
+epoch=3.298 w/s=575.39 train_ppl=7256.041 lr=1.000 time_since_begin=88.75m
+epoch=3.398 w/s=577.01 train_ppl=7053.753 lr=1.000 time_since_begin=91.17m
+epoch=3.497 w/s=578.63 train_ppl=6857.900 lr=1.000 time_since_begin=93.58m
+epoch=3.597 w/s=580.24 train_ppl=6679.761 lr=1.000 time_since_begin=95.97m
+epoch=3.696 w/s=581.70 train_ppl=6506.403 lr=1.000 time_since_begin=98.38m
+epoch=3.796 w/s=583.14 train_ppl=6360.775 lr=1.000 time_since_begin=100.77m
+epoch=3.895 w/s=584.67 train_ppl=6202.757 lr=1.000 time_since_begin=103.14m
+epoch=3.995 w/s=586.12 train_ppl=6068.503 lr=1.000 time_since_begin=105.52m
+epoch=4 ppl-valid=130.979 ppl-test=127.804
+epoch=4.099 w/s=573.09 train_ppl=5930.270 lr=1.000 time_since_begin=110.75m
+epoch=4.199 w/s=574.57 train_ppl=5807.844 lr=1.000 time_since_begin=113.14m
+epoch=4.298 w/s=576.12 train_ppl=5687.334 lr=1.000 time_since_begin=115.51m
+epoch=4.398 w/s=577.51 train_ppl=5575.467 lr=1.000 time_since_begin=117.90m
+epoch=4.497 w/s=578.83 train_ppl=5469.935 lr=1.000 time_since_begin=120.29m
+epoch=4.597 w/s=580.22 train_ppl=5373.480 lr=1.000 time_since_begin=122.65m
+epoch=4.696 w/s=581.49 train_ppl=5285.307 lr=1.000 time_since_begin=125.04m
+epoch=4.796 w/s=582.65 train_ppl=5205.832 lr=1.000 time_since_begin=127.43m
+epoch=4.895 w/s=583.94 train_ppl=5117.426 lr=1.000 time_since_begin=129.79m
+epoch=4.995 w/s=585.15 train_ppl=5039.687 lr=1.000 time_since_begin=132.15m
+epoch=5 ppl-valid=121.081 ppl-test=118.393
+epoch=5.099 w/s=574.54 train_ppl=4954.786 lr=1.000 time_since_begin=137.41m
+epoch=5.199 w/s=575.79 train_ppl=4879.804 lr=1.000 time_since_begin=139.79m
+epoch=5.298 w/s=577.08 train_ppl=4799.377 lr=1.000 time_since_begin=142.14m
+epoch=5.398 w/s=578.40 train_ppl=4732.845 lr=1.000 time_since_begin=144.48m
+epoch=5.497 w/s=579.58 train_ppl=4668.575 lr=1.000 time_since_begin=146.85m
+epoch=5.597 w/s=580.74 train_ppl=4605.856 lr=1.000 time_since_begin=149.20m
+epoch=5.696 w/s=581.80 train_ppl=4547.045 lr=1.000 time_since_begin=151.58m
+epoch=5.796 w/s=582.79 train_ppl=4485.305 lr=1.000 time_since_begin=153.96m
+epoch=5.895 w/s=583.81 train_ppl=4427.979 lr=1.000 time_since_begin=156.33m
+epoch=5.995 w/s=584.82 train_ppl=4374.168 lr=1.000 time_since_begin=158.70m
+epoch=6 ppl-valid=113.357 ppl-test=110.263
+epoch=6.099 w/s=576.03 train_ppl=4318.167 lr=1.000 time_since_begin=163.93m
+epoch=6.199 w/s=577.03 train_ppl=4272.919 lr=1.000 time_since_begin=166.32m
+epoch=6.298 w/s=578.13 train_ppl=4223.844 lr=1.000 time_since_begin=168.66m
+epoch=6.398 w/s=579.10 train_ppl=4175.596 lr=1.000 time_since_begin=171.04m
+epoch=6.497 w/s=579.98 train_ppl=4126.061 lr=1.000 time_since_begin=173.44m
+epoch=6.597 w/s=580.90 train_ppl=4081.443 lr=1.000 time_since_begin=175.81m
+epoch=6.696 w/s=581.79 train_ppl=4038.531 lr=1.000 time_since_begin=178.19m
+epoch=6.796 w/s=582.68 train_ppl=4000.416 lr=1.000 time_since_begin=180.56m
+epoch=6.895 w/s=583.52 train_ppl=3955.406 lr=1.000 time_since_begin=182.94m
+epoch=6.995 w/s=584.31 train_ppl=3913.012 lr=1.000 time_since_begin=185.33m
+epoch=7 ppl-valid=108.376 ppl-test=105.677
+epoch=7.099 w/s=576.97 train_ppl=3872.570 lr=1.000 time_since_begin=190.50m
+epoch=7.199 w/s=577.73 train_ppl=3838.185 lr=1.000 time_since_begin=192.91m
+epoch=7.298 w/s=578.60 train_ppl=3800.161 lr=1.000 time_since_begin=195.29m
+epoch=7.398 w/s=579.52 train_ppl=3762.768 lr=1.000 time_since_begin=197.63m
+epoch=7.497 w/s=580.35 train_ppl=3724.553 lr=1.000 time_since_begin=200.00m
+epoch=7.597 w/s=581.13 train_ppl=3688.349 lr=1.000 time_since_begin=202.38m
+epoch=7.696 w/s=581.91 train_ppl=3652.630 lr=1.000 time_since_begin=204.76m
+epoch=7.796 w/s=582.69 train_ppl=3617.043 lr=1.000 time_since_begin=207.13m
+epoch=7.895 w/s=583.44 train_ppl=3587.660 lr=1.000 time_since_begin=209.50m
+epoch=7.995 w/s=584.12 train_ppl=3560.075 lr=1.000 time_since_begin=211.89m
+epoch=8 ppl-valid=104.709 ppl-test=102.542
+epoch=8.099 w/s=577.43 train_ppl=3528.036 lr=1.000 time_since_begin=217.16m
+epoch=8.199 w/s=578.24 train_ppl=3497.682 lr=1.000 time_since_begin=219.52m
+epoch=8.298 w/s=578.96 train_ppl=3465.856 lr=1.000 time_since_begin=221.90m
+epoch=8.398 w/s=579.66 train_ppl=3435.001 lr=1.000 time_since_begin=224.29m
+epoch=8.497 w/s=580.39 train_ppl=3409.424 lr=1.000 time_since_begin=226.66m
+epoch=8.597 w/s=581.11 train_ppl=3380.526 lr=1.000 time_since_begin=229.03m
+epoch=8.696 w/s=581.78 train_ppl=3356.343 lr=1.000 time_since_begin=231.42m
+epoch=8.796 w/s=582.45 train_ppl=3330.135 lr=1.000 time_since_begin=233.79m
+epoch=8.895 w/s=583.08 train_ppl=3300.964 lr=1.000 time_since_begin=236.18m
+epoch=8.995 w/s=583.63 train_ppl=3276.186 lr=1.000 time_since_begin=238.60m
+epoch=9 ppl-valid=101.256 ppl-test=99.720
+epoch=9.099 w/s=577.65 train_ppl=3248.528 lr=1.000 time_since_begin=243.88m
+epoch=9.199 w/s=578.28 train_ppl=3226.656 lr=1.000 time_since_begin=246.27m
+epoch=9.298 w/s=578.92 train_ppl=3201.355 lr=1.000 time_since_begin=248.66m
+epoch=9.398 w/s=579.53 train_ppl=3179.744 lr=1.000 time_since_begin=251.06m
+epoch=9.497 w/s=580.18 train_ppl=3155.630 lr=1.000 time_since_begin=253.43m
+epoch=9.597 w/s=580.80 train_ppl=3130.810 lr=1.000 time_since_begin=255.81m
+epoch=9.696 w/s=581.45 train_ppl=3109.099 lr=1.000 time_since_begin=258.17m
+epoch=9.796 w/s=582.02 train_ppl=3089.188 lr=1.000 time_since_begin=260.57m
+epoch=9.895 w/s=582.58 train_ppl=3069.814 lr=1.000 time_since_begin=262.96m
+epoch=9.995 w/s=583.18 train_ppl=3044.352 lr=1.000 time_since_begin=265.33m
+epoch=10 ppl-valid=99.045 ppl-test=97.180
+epoch=10.099 w/s=577.78 train_ppl=3019.822 lr=1.000 time_since_begin=270.62m
+epoch=10.199 w/s=578.35 train_ppl=2999.002 lr=1.000 time_since_begin=273.01m
+epoch=10.298 w/s=578.92 train_ppl=2980.455 lr=1.000 time_since_begin=275.41m
+epoch=10.398 w/s=579.48 train_ppl=2959.491 lr=1.000 time_since_begin=277.80m
+epoch=10.497 w/s=580.08 train_ppl=2938.569 lr=1.000 time_since_begin=280.16m
+epoch=10.597 w/s=580.63 train_ppl=2917.595 lr=1.000 time_since_begin=282.55m
+epoch=10.696 w/s=581.16 train_ppl=2896.534 lr=1.000 time_since_begin=284.94m
+epoch=10.796 w/s=581.71 train_ppl=2879.113 lr=1.000 time_since_begin=287.32m
+epoch=10.895 w/s=582.19 train_ppl=2859.210 lr=1.000 time_since_begin=289.73m
+epoch=10.995 w/s=582.70 train_ppl=2837.343 lr=1.000 time_since_begin=292.12m
+epoch=11 ppl-valid=97.285 ppl-test=95.269
+epoch=11.099 w/s=577.93 train_ppl=2820.659 lr=1.000 time_since_begin=297.34m
+epoch=11.199 w/s=578.41 train_ppl=2802.608 lr=1.000 time_since_begin=299.75m
+epoch=11.298 w/s=578.96 train_ppl=2781.313 lr=1.000 time_since_begin=302.12m
+epoch=11.398 w/s=579.50 train_ppl=2763.923 lr=1.000 time_since_begin=304.50m
+epoch=11.497 w/s=580.01 train_ppl=2749.074 lr=1.000 time_since_begin=306.89m
+epoch=11.597 w/s=580.50 train_ppl=2731.871 lr=1.000 time_since_begin=309.28m
+epoch=11.696 w/s=580.98 train_ppl=2718.108 lr=1.000 time_since_begin=311.68m
+epoch=11.796 w/s=581.46 train_ppl=2701.780 lr=1.000 time_since_begin=314.07m
+epoch=11.895 w/s=581.94 train_ppl=2687.173 lr=1.000 time_since_begin=316.46m
+epoch=11.995 w/s=582.40 train_ppl=2676.915 lr=1.000 time_since_begin=318.85m
+epoch=12 ppl-valid=95.696 ppl-test=93.283
+epoch=12.099 w/s=577.96 train_ppl=2658.581 lr=1.000 time_since_begin=324.10m
+epoch=12.199 w/s=578.45 train_ppl=2642.911 lr=1.000 time_since_begin=326.49m
+epoch=12.298 w/s=578.95 train_ppl=2630.492 lr=1.000 time_since_begin=328.87m
+epoch=12.398 w/s=579.44 train_ppl=2614.483 lr=1.000 time_since_begin=331.25m
+epoch=12.497 w/s=579.88 train_ppl=2596.979 lr=1.000 time_since_begin=333.65m
+epoch=12.597 w/s=580.33 train_ppl=2584.114 lr=1.000 time_since_begin=336.05m
+epoch=12.696 w/s=580.79 train_ppl=2570.750 lr=1.000 time_since_begin=338.44m
+epoch=12.796 w/s=581.26 train_ppl=2554.887 lr=1.000 time_since_begin=340.81m
+epoch=12.895 w/s=581.70 train_ppl=2538.863 lr=1.000 time_since_begin=343.20m
+epoch=12.995 w/s=582.11 train_ppl=2523.695 lr=1.000 time_since_begin=345.60m
+epoch=13 ppl-valid=93.984 ppl-test=91.646
+epoch=13.099 w/s=577.99 train_ppl=2510.073 lr=1.000 time_since_begin=350.87m
+epoch=13.199 w/s=578.46 train_ppl=2497.498 lr=1.000 time_since_begin=353.25m
+epoch=13.298 w/s=578.92 train_ppl=2481.880 lr=1.000 time_since_begin=355.63m
+epoch=13.398 w/s=579.33 train_ppl=2470.183 lr=1.000 time_since_begin=358.04m
+epoch=13.497 w/s=579.77 train_ppl=2454.049 lr=1.000 time_since_begin=360.42m
+epoch=13.597 w/s=580.18 train_ppl=2439.805 lr=1.000 time_since_begin=362.82m
+epoch=13.696 w/s=580.60 train_ppl=2424.273 lr=1.000 time_since_begin=365.21m
+epoch=13.796 w/s=581.02 train_ppl=2413.175 lr=1.000 time_since_begin=367.60m
+epoch=13.895 w/s=581.47 train_ppl=2397.573 lr=1.000 time_since_begin=369.96m
+epoch=13.995 w/s=581.85 train_ppl=2383.791 lr=1.000 time_since_begin=372.36m
+epoch=14 ppl-valid=93.355 ppl-test=91.060
+epoch=14.099 w/s=578.10 train_ppl=2365.780 lr=0.870 time_since_begin=377.59m
+epoch=14.199 w/s=578.51 train_ppl=2344.049 lr=0.870 time_since_begin=379.98m
+epoch=14.298 w/s=578.92 train_ppl=2322.641 lr=0.870 time_since_begin=382.37m
+epoch=14.398 w/s=579.33 train_ppl=2298.701 lr=0.870 time_since_begin=384.76m
+epoch=14.497 w/s=579.73 train_ppl=2276.464 lr=0.870 time_since_begin=387.15m
+epoch=14.597 w/s=580.12 train_ppl=2251.844 lr=0.870 time_since_begin=389.55m
+epoch=14.696 w/s=580.52 train_ppl=2228.540 lr=0.870 time_since_begin=391.93m
+epoch=14.796 w/s=580.93 train_ppl=2202.209 lr=0.870 time_since_begin=394.30m
+epoch=14.895 w/s=581.34 train_ppl=2177.545 lr=0.870 time_since_begin=396.68m
+epoch=14.995 w/s=581.67 train_ppl=2150.742 lr=0.870 time_since_begin=399.10m
+epoch=15 ppl-valid=90.725 ppl-test=88.369
+epoch=15.099 w/s=578.28 train_ppl=2129.049 lr=0.756 time_since_begin=404.24m
+epoch=15.199 w/s=578.66 train_ppl=2107.614 lr=0.756 time_since_begin=406.63m
+epoch=15.298 w/s=579.02 train_ppl=2085.849 lr=0.756 time_since_begin=409.04m
+epoch=15.398 w/s=579.37 train_ppl=2064.908 lr=0.756 time_since_begin=411.45m
+epoch=15.497 w/s=579.72 train_ppl=2040.507 lr=0.756 time_since_begin=413.86m
+epoch=15.597 w/s=580.07 train_ppl=2016.094 lr=0.756 time_since_begin=416.27m
+epoch=15.696 w/s=580.43 train_ppl=1993.451 lr=0.756 time_since_begin=418.67m
+epoch=15.796 w/s=580.76 train_ppl=1971.746 lr=0.756 time_since_begin=421.08m
+epoch=15.895 w/s=581.09 train_ppl=1948.948 lr=0.756 time_since_begin=423.49m
+epoch=15.995 w/s=581.43 train_ppl=1925.040 lr=0.756 time_since_begin=425.89m
+epoch=16 ppl-valid=88.322 ppl-test=85.671
+epoch=16.099 w/s=578.12 train_ppl=1902.767 lr=0.658 time_since_begin=431.14m
+epoch=16.199 w/s=578.45 train_ppl=1882.285 lr=0.658 time_since_begin=433.55m
+epoch=16.298 w/s=578.79 train_ppl=1860.393 lr=0.658 time_since_begin=435.95m
+epoch=16.398 w/s=579.11 train_ppl=1838.963 lr=0.658 time_since_begin=438.38m
+epoch=16.497 w/s=579.44 train_ppl=1820.076 lr=0.658 time_since_begin=440.78m
+epoch=16.597 w/s=579.76 train_ppl=1801.818 lr=0.658 time_since_begin=443.20m
+epoch=16.696 w/s=580.08 train_ppl=1781.193 lr=0.658 time_since_begin=445.60m
+epoch=16.796 w/s=580.40 train_ppl=1760.310 lr=0.658 time_since_begin=448.01m
+epoch=16.895 w/s=580.72 train_ppl=1739.238 lr=0.658 time_since_begin=450.41m
+epoch=16.995 w/s=580.99 train_ppl=1718.967 lr=0.658 time_since_begin=452.86m
+epoch=17 ppl-valid=87.303 ppl-test=84.345
+epoch=17.099 w/s=577.87 train_ppl=1701.708 lr=0.572 time_since_begin=458.11m
+epoch=17.199 w/s=578.19 train_ppl=1687.220 lr=0.572 time_since_begin=460.52m
+epoch=17.298 w/s=578.50 train_ppl=1670.260 lr=0.572 time_since_begin=462.94m
+epoch=17.398 w/s=578.81 train_ppl=1654.200 lr=0.572 time_since_begin=465.35m
+epoch=17.497 w/s=579.13 train_ppl=1636.109 lr=0.572 time_since_begin=467.75m
+epoch=17.597 w/s=579.44 train_ppl=1618.581 lr=0.572 time_since_begin=470.16m
+epoch=17.696 w/s=579.75 train_ppl=1601.315 lr=0.572 time_since_begin=472.56m
+epoch=17.796 w/s=580.07 train_ppl=1585.040 lr=0.572 time_since_begin=474.95m
+epoch=17.895 w/s=580.38 train_ppl=1568.853 lr=0.572 time_since_begin=477.36m
+epoch=17.995 w/s=580.66 train_ppl=1553.520 lr=0.572 time_since_begin=479.78m
+epoch=18 ppl-valid=85.945 ppl-test=83.215
+epoch=18.099 w/s=577.70 train_ppl=1538.138 lr=0.497 time_since_begin=485.04m
+epoch=18.199 w/s=578.03 train_ppl=1521.844 lr=0.497 time_since_begin=487.43m
+epoch=18.298 w/s=578.35 train_ppl=1507.387 lr=0.497 time_since_begin=489.83m
+epoch=18.398 w/s=578.64 train_ppl=1490.893 lr=0.497 time_since_begin=492.24m
+epoch=18.497 w/s=578.92 train_ppl=1478.301 lr=0.497 time_since_begin=494.66m
+epoch=18.597 w/s=579.22 train_ppl=1462.546 lr=0.497 time_since_begin=497.06m
+epoch=18.696 w/s=579.51 train_ppl=1449.107 lr=0.497 time_since_begin=499.47m
+epoch=18.796 w/s=579.80 train_ppl=1434.731 lr=0.497 time_since_begin=501.88m
+epoch=18.895 w/s=580.08 train_ppl=1420.718 lr=0.497 time_since_begin=504.29m
+epoch=18.995 w/s=580.35 train_ppl=1407.232 lr=0.497 time_since_begin=506.71m
+epoch=19 ppl-valid=84.838 ppl-test=81.888
+epoch=19.099 w/s=577.57 train_ppl=1392.542 lr=0.432 time_since_begin=511.95m
+epoch=19.199 w/s=577.86 train_ppl=1382.303 lr=0.432 time_since_begin=514.37m
+epoch=19.298 w/s=578.14 train_ppl=1369.192 lr=0.432 time_since_begin=516.78m
+epoch=19.398 w/s=578.41 train_ppl=1358.475 lr=0.432 time_since_begin=519.20m
+epoch=19.497 w/s=578.71 train_ppl=1345.407 lr=0.432 time_since_begin=521.59m
+epoch=19.597 w/s=579.00 train_ppl=1336.063 lr=0.432 time_since_begin=523.99m
+epoch=19.696 w/s=579.28 train_ppl=1323.243 lr=0.432 time_since_begin=526.39m
+epoch=19.796 w/s=579.55 train_ppl=1310.579 lr=0.432 time_since_begin=528.81m
+epoch=19.895 w/s=579.83 train_ppl=1298.651 lr=0.432 time_since_begin=531.21m
+epoch=19.995 w/s=580.10 train_ppl=1282.628 lr=0.432 time_since_begin=533.62m
+epoch=20 ppl-valid=84.116 ppl-test=81.026
+epoch=20.099 w/s=577.47 train_ppl=1272.128 lr=0.376 time_since_begin=538.86m
+epoch=20.199 w/s=577.77 train_ppl=1259.771 lr=0.376 time_since_begin=541.24m
+epoch=20.298 w/s=578.04 train_ppl=1249.870 lr=0.376 time_since_begin=543.65m
+epoch=20.398 w/s=578.30 train_ppl=1238.742 lr=0.376 time_since_begin=546.08m
+epoch=20.497 w/s=578.55 train_ppl=1227.023 lr=0.376 time_since_begin=548.50m
+epoch=20.597 w/s=578.81 train_ppl=1215.288 lr=0.376 time_since_begin=550.91m
+epoch=20.696 w/s=579.08 train_ppl=1206.011 lr=0.376 time_since_begin=553.32m
+epoch=20.796 w/s=579.36 train_ppl=1197.157 lr=0.376 time_since_begin=555.70m
+epoch=20.895 w/s=579.65 train_ppl=1187.244 lr=0.376 time_since_begin=558.08m
+epoch=20.995 w/s=579.91 train_ppl=1179.336 lr=0.376 time_since_begin=560.49m
+epoch=21 ppl-valid=83.786 ppl-test=80.491
+epoch=21.099 w/s=577.39 train_ppl=1169.600 lr=0.327 time_since_begin=565.75m
+epoch=21.199 w/s=577.64 train_ppl=1160.645 lr=0.327 time_since_begin=568.17m
+epoch=21.298 w/s=577.90 train_ppl=1151.211 lr=0.327 time_since_begin=570.57m
+epoch=21.398 w/s=578.15 train_ppl=1141.467 lr=0.327 time_since_begin=572.99m
+epoch=21.497 w/s=578.40 train_ppl=1133.287 lr=0.327 time_since_begin=575.40m
+epoch=21.597 w/s=578.64 train_ppl=1124.139 lr=0.327 time_since_begin=577.83m
+epoch=21.696 w/s=578.92 train_ppl=1115.199 lr=0.327 time_since_begin=580.21m
+epoch=21.796 w/s=579.17 train_ppl=1105.857 lr=0.327 time_since_begin=582.62m
+epoch=21.895 w/s=579.42 train_ppl=1096.397 lr=0.327 time_since_begin=585.03m
+epoch=21.995 w/s=579.67 train_ppl=1087.104 lr=0.327 time_since_begin=587.43m
+epoch=22 ppl-valid=83.167 ppl-test=79.849
+epoch=22.099 w/s=577.26 train_ppl=1078.754 lr=0.284 time_since_begin=592.69m
+epoch=22.199 w/s=577.51 train_ppl=1072.259 lr=0.284 time_since_begin=595.10m
+epoch=22.298 w/s=577.76 train_ppl=1065.265 lr=0.284 time_since_begin=597.51m
+epoch=22.398 w/s=578.00 train_ppl=1058.795 lr=0.284 time_since_begin=599.92m
+epoch=22.497 w/s=578.24 train_ppl=1051.512 lr=0.284 time_since_begin=602.34m
+epoch=22.597 w/s=578.46 train_ppl=1043.915 lr=0.284 time_since_begin=604.77m
+epoch=22.696 w/s=578.69 train_ppl=1036.325 lr=0.284 time_since_begin=607.19m
+epoch=22.796 w/s=578.92 train_ppl=1028.953 lr=0.284 time_since_begin=609.62m
+epoch=22.895 w/s=579.13 train_ppl=1021.033 lr=0.284 time_since_begin=612.05m
+epoch=22.995 w/s=579.34 train_ppl=1013.976 lr=0.284 time_since_begin=614.48m
+epoch=23 ppl-valid=83.236 ppl-test=79.577
+epoch=23.099 w/s=577.06 train_ppl=1007.097 lr=0.247 time_since_begin=619.72m
+epoch=23.199 w/s=577.31 train_ppl=1000.248 lr=0.247 time_since_begin=622.13m
+epoch=23.298 w/s=577.54 train_ppl=994.772 lr=0.247 time_since_begin=624.54m
+epoch=23.398 w/s=577.79 train_ppl=987.898 lr=0.247 time_since_begin=626.94m
+epoch=23.497 w/s=578.02 train_ppl=980.831 lr=0.247 time_since_begin=629.35m
+epoch=23.597 w/s=578.24 train_ppl=974.521 lr=0.247 time_since_begin=631.77m
+epoch=23.696 w/s=578.47 train_ppl=968.337 lr=0.247 time_since_begin=634.19m
+epoch=23.796 w/s=578.70 train_ppl=961.605 lr=0.247 time_since_begin=636.60m
+epoch=23.895 w/s=578.93 train_ppl=955.820 lr=0.247 time_since_begin=639.01m
+epoch=23.995 w/s=579.16 train_ppl=950.386 lr=0.247 time_since_begin=641.41m
+epoch=24 ppl-valid=82.858 ppl-test=79.265
+epoch=24.099 w/s=576.93 train_ppl=944.396 lr=0.215 time_since_begin=646.70m
+epoch=24.199 w/s=577.15 train_ppl=939.551 lr=0.215 time_since_begin=649.12m
+epoch=24.298 w/s=577.37 train_ppl=932.582 lr=0.215 time_since_begin=651.54m
+epoch=24.398 w/s=577.61 train_ppl=927.726 lr=0.215 time_since_begin=653.94m
+epoch=24.497 w/s=577.83 train_ppl=922.173 lr=0.215 time_since_begin=656.36m
+epoch=24.597 w/s=578.05 train_ppl=916.393 lr=0.215 time_since_begin=658.76m
+epoch=24.696 w/s=578.27 train_ppl=912.924 lr=0.215 time_since_begin=661.18m
+epoch=24.796 w/s=578.50 train_ppl=908.395 lr=0.215 time_since_begin=663.58m
+epoch=24.895 w/s=578.70 train_ppl=902.683 lr=0.215 time_since_begin=666.02m
+epoch=24.995 w/s=578.89 train_ppl=896.796 lr=0.215 time_since_begin=668.45m
+epoch=25 ppl-valid=82.747 ppl-test=79.179
+epoch=25.099 w/s=576.77 train_ppl=893.198 lr=0.187 time_since_begin=673.72m
+epoch=25.199 w/s=576.98 train_ppl=888.194 lr=0.187 time_since_begin=676.14m
+epoch=25.298 w/s=577.19 train_ppl=883.924 lr=0.187 time_since_begin=678.57m
+epoch=25.398 w/s=577.40 train_ppl=879.378 lr=0.187 time_since_begin=680.98m
+epoch=25.497 w/s=577.62 train_ppl=875.799 lr=0.187 time_since_begin=683.39m
+epoch=25.597 w/s=577.83 train_ppl=871.891 lr=0.187 time_since_begin=685.81m
+epoch=25.696 w/s=578.04 train_ppl=865.542 lr=0.187 time_since_begin=688.22m
+epoch=25.796 w/s=578.26 train_ppl=860.718 lr=0.187 time_since_begin=690.63m
+epoch=25.895 w/s=578.47 train_ppl=856.271 lr=0.187 time_since_begin=693.04m
+epoch=25.995 w/s=578.68 train_ppl=852.438 lr=0.187 time_since_begin=695.45m
+epoch=26 ppl-valid=82.565 ppl-test=78.905
+epoch=26.099 w/s=576.73 train_ppl=847.442 lr=0.163 time_since_begin=700.61m
+epoch=26.199 w/s=576.94 train_ppl=845.017 lr=0.163 time_since_begin=703.03m
+epoch=26.298 w/s=577.14 train_ppl=840.302 lr=0.163 time_since_begin=705.45m
+epoch=26.398 w/s=577.34 train_ppl=835.663 lr=0.163 time_since_begin=707.88m
+epoch=26.497 w/s=577.54 train_ppl=830.530 lr=0.163 time_since_begin=710.30m
+epoch=26.597 w/s=577.74 train_ppl=827.535 lr=0.163 time_since_begin=712.71m
+epoch=26.696 w/s=577.94 train_ppl=825.475 lr=0.163 time_since_begin=715.13m
+epoch=26.796 w/s=578.14 train_ppl=821.859 lr=0.163 time_since_begin=717.55m
+epoch=26.895 w/s=578.31 train_ppl=817.576 lr=0.163 time_since_begin=719.99m
+epoch=26.995 w/s=578.50 train_ppl=812.620 lr=0.163 time_since_begin=722.42m
+epoch=27 ppl-valid=82.696 ppl-test=78.940
+epoch=27.099 w/s=576.54 train_ppl=808.596 lr=0.141 time_since_begin=727.70m
+epoch=27.199 w/s=576.75 train_ppl=804.520 lr=0.141 time_since_begin=730.10m
+epoch=27.298 w/s=576.96 train_ppl=802.217 lr=0.141 time_since_begin=732.50m
+epoch=27.398 w/s=577.17 train_ppl=800.173 lr=0.141 time_since_begin=734.91m
+epoch=27.497 w/s=577.35 train_ppl=797.896 lr=0.141 time_since_begin=737.35m
+epoch=27.597 w/s=577.55 train_ppl=793.254 lr=0.141 time_since_begin=739.75m
+epoch=27.696 w/s=577.74 train_ppl=788.673 lr=0.141 time_since_begin=742.18m
+epoch=27.796 w/s=577.93 train_ppl=784.662 lr=0.141 time_since_begin=744.60m
+epoch=27.895 w/s=578.11 train_ppl=782.009 lr=0.141 time_since_begin=747.03m
+epoch=27.995 w/s=578.28 train_ppl=778.787 lr=0.141 time_since_begin=749.48m
+epoch=28 ppl-valid=82.668 ppl-test=78.749
+epoch=28.099 w/s=576.38 train_ppl=776.440 lr=0.123 time_since_begin=754.75m
+epoch=28.199 w/s=576.56 train_ppl=773.114 lr=0.123 time_since_begin=757.20m
+epoch=28.298 w/s=576.74 train_ppl=770.065 lr=0.123 time_since_begin=759.63m
+epoch=28.398 w/s=576.93 train_ppl=766.513 lr=0.123 time_since_begin=762.05m
+epoch=28.497 w/s=577.12 train_ppl=763.348 lr=0.123 time_since_begin=764.47m
+epoch=28.597 w/s=577.30 train_ppl=760.548 lr=0.123 time_since_begin=766.89m
+epoch=28.696 w/s=577.50 train_ppl=758.264 lr=0.123 time_since_begin=769.30m
+epoch=28.796 w/s=577.69 train_ppl=755.788 lr=0.123 time_since_begin=771.70m
+epoch=28.895 w/s=577.87 train_ppl=753.006 lr=0.123 time_since_begin=774.13m
+epoch=28.995 w/s=578.05 train_ppl=751.118 lr=0.123 time_since_begin=776.55m
+epoch=29 ppl-valid=82.883 ppl-test=78.871
+epoch=29.099 w/s=576.25 train_ppl=749.164 lr=0.107 time_since_begin=781.79m
+epoch=29.199 w/s=576.44 train_ppl=746.657 lr=0.107 time_since_begin=784.21m
+epoch=29.298 w/s=576.63 train_ppl=744.688 lr=0.107 time_since_begin=786.62m
+epoch=29.398 w/s=576.81 train_ppl=742.982 lr=0.107 time_since_begin=789.04m
+epoch=29.497 w/s=576.98 train_ppl=741.688 lr=0.107 time_since_begin=791.48m
+epoch=29.597 w/s=577.15 train_ppl=739.460 lr=0.107 time_since_begin=793.92m
+epoch=29.696 w/s=577.32 train_ppl=736.103 lr=0.107 time_since_begin=796.35m
+epoch=29.796 w/s=577.49 train_ppl=733.542 lr=0.107 time_since_begin=798.78m
+epoch=29.895 w/s=577.66 train_ppl=730.720 lr=0.107 time_since_begin=801.21m
+epoch=29.995 w/s=577.83 train_ppl=726.839 lr=0.107 time_since_begin=803.65m
+epoch=30 ppl-valid=82.801 ppl-test=78.867
+epoch=30.099 w/s=576.05 train_ppl=723.396 lr=0.093 time_since_begin=808.94m
+epoch=30.199 w/s=576.24 train_ppl=721.230 lr=0.093 time_since_begin=811.35m
+epoch=30.298 w/s=576.43 train_ppl=717.582 lr=0.093 time_since_begin=813.75m
+epoch=30.398 w/s=576.61 train_ppl=714.893 lr=0.093 time_since_begin=816.17m
+epoch=30.497 w/s=576.80 train_ppl=710.935 lr=0.093 time_since_begin=818.57m
+epoch=30.597 w/s=576.98 train_ppl=709.578 lr=0.093 time_since_begin=820.98m
+epoch=30.696 w/s=577.16 train_ppl=708.127 lr=0.093 time_since_begin=823.39m
+epoch=30.796 w/s=577.35 train_ppl=706.439 lr=0.093 time_since_begin=825.80m
+epoch=30.895 w/s=577.52 train_ppl=704.590 lr=0.093 time_since_begin=828.22m
+epoch=30.995 w/s=577.70 train_ppl=703.210 lr=0.093 time_since_begin=830.61m
+epoch=31 ppl-valid=82.773 ppl-test=78.718
+epoch=31.099 w/s=576.00 train_ppl=701.601 lr=0.081 time_since_begin=835.89m
+epoch=31.199 w/s=576.16 train_ppl=700.397 lr=0.081 time_since_begin=838.33m
+epoch=31.298 w/s=576.34 train_ppl=699.398 lr=0.081 time_since_begin=840.74m
+epoch=31.398 w/s=576.49 train_ppl=697.223 lr=0.081 time_since_begin=843.19m
+epoch=31.497 w/s=576.66 train_ppl=696.451 lr=0.081 time_since_begin=845.61m
+epoch=31.597 w/s=576.83 train_ppl=694.659 lr=0.081 time_since_begin=848.03m
+epoch=31.696 w/s=576.98 train_ppl=693.209 lr=0.081 time_since_begin=850.48m
+epoch=31.796 w/s=577.15 train_ppl=690.984 lr=0.081 time_since_begin=852.90m
+epoch=31.895 w/s=577.33 train_ppl=688.697 lr=0.081 time_since_begin=855.30m
+epoch=31.995 w/s=577.51 train_ppl=687.717 lr=0.081 time_since_begin=857.70m
+epoch=32 ppl-valid=83.059 ppl-test=78.971
+epoch=32.099 w/s=575.86 train_ppl=685.688 lr=0.070 time_since_begin=862.98m
+epoch=32.199 w/s=576.03 train_ppl=684.004 lr=0.070 time_since_begin=865.39m
+epoch=32.298 w/s=576.21 train_ppl=681.480 lr=0.070 time_since_begin=867.80m
+epoch=32.398 w/s=576.38 train_ppl=679.760 lr=0.070 time_since_begin=870.22m
+epoch=32.497 w/s=576.53 train_ppl=677.560 lr=0.070 time_since_begin=872.66m
+epoch=32.597 w/s=576.71 train_ppl=675.273 lr=0.070 time_since_begin=875.06m
+epoch=32.696 w/s=576.88 train_ppl=673.250 lr=0.070 time_since_begin=877.47m
+epoch=32.796 w/s=577.05 train_ppl=671.231 lr=0.070 time_since_begin=879.88m
+epoch=32.895 w/s=577.22 train_ppl=669.229 lr=0.070 time_since_begin=882.29m
+epoch=32.995 w/s=577.41 train_ppl=666.124 lr=0.070 time_since_begin=884.66m
+epoch=33 ppl-valid=83.065 ppl-test=78.954
+epoch=33.099 w/s=575.81 train_ppl=664.994 lr=0.061 time_since_begin=889.93m
+epoch=33.199 w/s=575.98 train_ppl=664.252 lr=0.061 time_since_begin=892.35m
+epoch=33.298 w/s=576.14 train_ppl=663.598 lr=0.061 time_since_begin=894.78m
+epoch=33.398 w/s=576.29 train_ppl=662.417 lr=0.061 time_since_begin=897.21m
+epoch=33.497 w/s=576.45 train_ppl=661.844 lr=0.061 time_since_begin=899.63m
+epoch=33.597 w/s=576.60 train_ppl=660.319 lr=0.061 time_since_begin=902.08m
+epoch=33.696 w/s=576.76 train_ppl=659.093 lr=0.061 time_since_begin=904.49m
+epoch=33.796 w/s=576.91 train_ppl=658.160 lr=0.061 time_since_begin=906.93m
+epoch=33.895 w/s=577.07 train_ppl=657.181 lr=0.061 time_since_begin=909.34m
+epoch=33.995 w/s=577.23 train_ppl=656.356 lr=0.061 time_since_begin=911.76m
+epoch=34 ppl-valid=83.004 ppl-test=78.844
+epoch=34.099 w/s=575.70 train_ppl=654.571 lr=0.053 time_since_begin=916.99m
+epoch=34.199 w/s=575.87 train_ppl=652.605 lr=0.053 time_since_begin=919.40m
+epoch=34.298 w/s=576.04 train_ppl=651.570 lr=0.053 time_since_begin=921.80m
+epoch=34.398 w/s=576.21 train_ppl=650.184 lr=0.053 time_since_begin=924.20m
+epoch=34.497 w/s=576.37 train_ppl=647.809 lr=0.053 time_since_begin=926.61m
+epoch=34.597 w/s=576.54 train_ppl=646.945 lr=0.053 time_since_begin=929.02m
+epoch=34.696 w/s=576.70 train_ppl=647.048 lr=0.053 time_since_begin=931.44m
+epoch=34.796 w/s=576.85 train_ppl=645.915 lr=0.053 time_since_begin=933.86m
+epoch=34.895 w/s=577.02 train_ppl=644.951 lr=0.053 time_since_begin=936.25m
+epoch=34.995 w/s=577.18 train_ppl=642.658 lr=0.053 time_since_begin=938.67m
+epoch=35 ppl-valid=83.171 ppl-test=78.902
+epoch=35.099 w/s=575.66 train_ppl=642.571 lr=0.046 time_since_begin=943.95m
+epoch=35.199 w/s=575.82 train_ppl=641.841 lr=0.046 time_since_begin=946.36m
+epoch=35.298 w/s=575.98 train_ppl=641.002 lr=0.046 time_since_begin=948.78m
+epoch=35.398 w/s=576.15 train_ppl=639.889 lr=0.046 time_since_begin=951.18m
+epoch=35.497 w/s=576.29 train_ppl=639.906 lr=0.046 time_since_begin=953.61m
+epoch=35.597 w/s=576.45 train_ppl=639.300 lr=0.046 time_since_begin=956.02m
+epoch=35.696 w/s=576.63 train_ppl=637.148 lr=0.046 time_since_begin=958.39m
+epoch=35.796 w/s=576.79 train_ppl=636.189 lr=0.046 time_since_begin=960.80m
+epoch=35.895 w/s=576.95 train_ppl=635.167 lr=0.046 time_since_begin=963.20m
+epoch=35.995 w/s=577.10 train_ppl=634.841 lr=0.046 time_since_begin=965.62m
+epoch=36 ppl-valid=83.244 ppl-test=79.026
+epoch=36.099 w/s=575.60 train_ppl=633.539 lr=0.040 time_since_begin=970.94m
+epoch=36.199 w/s=575.75 train_ppl=631.948 lr=0.040 time_since_begin=973.37m
+epoch=36.298 w/s=575.90 train_ppl=630.526 lr=0.040 time_since_begin=975.80m
+epoch=36.398 w/s=576.07 train_ppl=629.865 lr=0.040 time_since_begin=978.18m
+epoch=36.497 w/s=576.21 train_ppl=628.414 lr=0.040 time_since_begin=980.61m
+epoch=36.597 w/s=576.36 train_ppl=627.093 lr=0.040 time_since_begin=983.03m
+epoch=36.696 w/s=576.51 train_ppl=627.159 lr=0.040 time_since_begin=985.44m
+epoch=36.796 w/s=576.66 train_ppl=626.798 lr=0.040 time_since_begin=987.85m
+epoch=36.895 w/s=576.81 train_ppl=625.374 lr=0.040 time_since_begin=990.27m
+epoch=36.995 w/s=576.95 train_ppl=624.645 lr=0.040 time_since_begin=992.70m
+epoch=37 ppl-valid=83.199 ppl-test=78.941
+epoch=37.099 w/s=575.52 train_ppl=623.690 lr=0.035 time_since_begin=997.98m
+epoch=37.199 w/s=575.67 train_ppl=623.484 lr=0.035 time_since_begin=1000.41m
+epoch=37.298 w/s=575.82 train_ppl=622.167 lr=0.035 time_since_begin=1002.82m
+epoch=37.398 w/s=575.97 train_ppl=622.407 lr=0.035 time_since_begin=1005.23m
+epoch=37.497 w/s=576.12 train_ppl=621.460 lr=0.035 time_since_begin=1007.64m
+epoch=37.597 w/s=576.26 train_ppl=620.419 lr=0.035 time_since_begin=1010.07m
+epoch=37.696 w/s=576.40 train_ppl=618.956 lr=0.035 time_since_begin=1012.49m
+epoch=37.796 w/s=576.55 train_ppl=617.482 lr=0.035 time_since_begin=1014.90m
+epoch=37.895 w/s=576.70 train_ppl=617.081 lr=0.035 time_since_begin=1017.31m
+epoch=37.995 w/s=576.83 train_ppl=616.157 lr=0.035 time_since_begin=1019.76m
+epoch=38 ppl-valid=83.215 ppl-test=78.946
+epoch=38.099 w/s=575.44 train_ppl=615.721 lr=0.030 time_since_begin=1025.03m
+epoch=38.199 w/s=575.56 train_ppl=614.689 lr=0.030 time_since_begin=1027.48m
+epoch=38.298 w/s=575.70 train_ppl=614.790 lr=0.030 time_since_begin=1029.91m
+epoch=38.398 w/s=575.85 train_ppl=613.341 lr=0.030 time_since_begin=1032.33m
+epoch=38.497 w/s=575.99 train_ppl=612.906 lr=0.030 time_since_begin=1034.75m
+epoch=38.597 w/s=576.14 train_ppl=612.951 lr=0.030 time_since_begin=1037.15m
+epoch=38.696 w/s=576.29 train_ppl=612.245 lr=0.030 time_since_begin=1039.55m
+epoch=38.796 w/s=576.42 train_ppl=612.049 lr=0.030 time_since_begin=1041.99m
+epoch=38.895 w/s=576.56 train_ppl=611.549 lr=0.030 time_since_begin=1044.41m
+epoch=38.995 w/s=576.69 train_ppl=611.655 lr=0.030 time_since_begin=1046.83m
+epoch=39 ppl-valid=83.217 ppl-test=78.893
+epoch=39.099 w/s=575.35 train_ppl=610.818 lr=0.026 time_since_begin=1052.11m
+epoch=39.199 w/s=575.49 train_ppl=611.052 lr=0.026 time_since_begin=1054.53m
+epoch=39.298 w/s=575.62 train_ppl=610.026 lr=0.026 time_since_begin=1056.95m
+epoch=39.398 w/s=575.76 train_ppl=609.162 lr=0.026 time_since_begin=1059.37m
+epoch=39.497 w/s=575.90 train_ppl=609.127 lr=0.026 time_since_begin=1061.78m
+epoch=39.597 w/s=576.06 train_ppl=608.289 lr=0.026 time_since_begin=1064.16m
+epoch=39.696 w/s=576.21 train_ppl=608.164 lr=0.026 time_since_begin=1066.57m
+epoch=39.796 w/s=576.35 train_ppl=606.695 lr=0.026 time_since_begin=1068.98m
+epoch=39.895 w/s=576.48 train_ppl=605.527 lr=0.026 time_since_begin=1071.40m
+epoch=39.995 w/s=576.62 train_ppl=604.532 lr=0.026 time_since_begin=1073.82m
+epoch=40 ppl-valid=83.145 ppl-test=78.794
+epoch=40.099 w/s=575.32 train_ppl=604.164 lr=0.023 time_since_begin=1079.07m
+epoch=40.199 w/s=575.46 train_ppl=602.859 lr=0.023 time_since_begin=1081.48m
+epoch=40.298 w/s=575.59 train_ppl=602.269 lr=0.023 time_since_begin=1083.90m
+epoch=40.398 w/s=575.73 train_ppl=602.560 lr=0.023 time_since_begin=1086.32m
+epoch=40.497 w/s=575.87 train_ppl=602.269 lr=0.023 time_since_begin=1088.74m
+epoch=40.597 w/s=575.99 train_ppl=601.726 lr=0.023 time_since_begin=1091.18m
+epoch=40.696 w/s=576.12 train_ppl=600.486 lr=0.023 time_since_begin=1093.61m
+epoch=40.796 w/s=576.25 train_ppl=600.127 lr=0.023 time_since_begin=1096.02m
+epoch=40.895 w/s=576.39 train_ppl=600.200 lr=0.023 time_since_begin=1098.44m
+epoch=40.995 w/s=576.53 train_ppl=599.752 lr=0.023 time_since_begin=1100.84m
+epoch=41 ppl-valid=83.223 ppl-test=78.854
+epoch=41.099 w/s=575.25 train_ppl=599.311 lr=0.020 time_since_begin=1106.12m
+epoch=41.199 w/s=575.38 train_ppl=598.922 lr=0.020 time_since_begin=1108.53m
+epoch=41.298 w/s=575.51 train_ppl=598.475 lr=0.020 time_since_begin=1110.95m
+epoch=41.398 w/s=575.64 train_ppl=598.061 lr=0.020 time_since_begin=1113.38m
+epoch=41.497 w/s=575.77 train_ppl=596.487 lr=0.020 time_since_begin=1115.81m
+epoch=41.597 w/s=575.91 train_ppl=596.474 lr=0.020 time_since_begin=1118.22m
+epoch=41.696 w/s=576.04 train_ppl=595.935 lr=0.020 time_since_begin=1120.63m
+epoch=41.796 w/s=576.17 train_ppl=595.816 lr=0.020 time_since_begin=1123.05m
+epoch=41.895 w/s=576.29 train_ppl=595.407 lr=0.020 time_since_begin=1125.48m
+epoch=41.995 w/s=576.42 train_ppl=594.485 lr=0.020 time_since_begin=1127.91m
+epoch=42 ppl-valid=83.235 ppl-test=78.871
+epoch=42.099 w/s=575.17 train_ppl=593.653 lr=0.017 time_since_begin=1133.18m
+epoch=42.199 w/s=575.30 train_ppl=593.376 lr=0.017 time_since_begin=1135.59m
+epoch=42.298 w/s=575.42 train_ppl=593.024 lr=0.017 time_since_begin=1138.04m
+epoch=42.398 w/s=575.56 train_ppl=592.362 lr=0.017 time_since_begin=1140.45m
+epoch=42.497 w/s=575.70 train_ppl=592.448 lr=0.017 time_since_begin=1142.83m
+epoch=42.597 w/s=575.85 train_ppl=591.399 lr=0.017 time_since_begin=1145.22m
+epoch=42.696 w/s=575.97 train_ppl=591.612 lr=0.017 time_since_begin=1147.64m
+epoch=42.796 w/s=576.09 train_ppl=591.281 lr=0.017 time_since_begin=1150.08m
+epoch=42.895 w/s=576.22 train_ppl=590.934 lr=0.017 time_since_begin=1152.49m
+epoch=42.995 w/s=576.34 train_ppl=590.879 lr=0.017 time_since_begin=1154.93m
+epoch=43 ppl-valid=83.205 ppl-test=78.834
+epoch=43.099 w/s=575.10 train_ppl=590.043 lr=0.015 time_since_begin=1160.23m
+epoch=43.199 w/s=575.23 train_ppl=590.472 lr=0.015 time_since_begin=1162.64m
+epoch=43.298 w/s=575.36 train_ppl=590.730 lr=0.015 time_since_begin=1165.07m
+epoch=43.398 w/s=575.49 train_ppl=589.916 lr=0.015 time_since_begin=1167.47m
+epoch=43.497 w/s=575.62 train_ppl=589.840 lr=0.015 time_since_begin=1169.89m
+epoch=43.597 w/s=575.74 train_ppl=590.197 lr=0.015 time_since_begin=1172.32m
+epoch=43.696 w/s=575.87 train_ppl=589.751 lr=0.015 time_since_begin=1174.72m
+epoch=43.796 w/s=576.00 train_ppl=589.597 lr=0.015 time_since_begin=1177.13m
+epoch=43.895 w/s=576.12 train_ppl=589.516 lr=0.015 time_since_begin=1179.57m
+epoch=43.995 w/s=576.25 train_ppl=588.937 lr=0.015 time_since_begin=1181.97m
+epoch=44 ppl-valid=83.224 ppl-test=78.855
+epoch=44.099 w/s=575.15 train_ppl=589.250 lr=0.013 time_since_begin=1187.06m
+epoch=44.199 w/s=575.28 train_ppl=588.664 lr=0.013 time_since_begin=1189.47m
+epoch=44.298 w/s=575.41 train_ppl=588.337 lr=0.013 time_since_begin=1191.88m
+epoch=44.398 w/s=575.55 train_ppl=588.627 lr=0.013 time_since_begin=1194.26m
+epoch=44.497 w/s=575.68 train_ppl=587.978 lr=0.013 time_since_begin=1196.67m
+epoch=44.597 w/s=575.81 train_ppl=587.525 lr=0.013 time_since_begin=1199.06m
+epoch=44.696 w/s=575.93 train_ppl=587.160 lr=0.013 time_since_begin=1201.48m
+epoch=44.796 w/s=576.07 train_ppl=587.286 lr=0.013 time_since_begin=1203.88m
+epoch=44.895 w/s=576.18 train_ppl=586.625 lr=0.013 time_since_begin=1206.31m
+epoch=44.995 w/s=576.31 train_ppl=586.431 lr=0.013 time_since_begin=1208.72m
+epoch=45 ppl-valid=83.196 ppl-test=78.809
+epoch=45.099 w/s=575.16 train_ppl=586.286 lr=0.011 time_since_begin=1213.95m
+epoch=45.199 w/s=575.29 train_ppl=585.722 lr=0.011 time_since_begin=1216.35m
+epoch=45.298 w/s=575.42 train_ppl=585.175 lr=0.011 time_since_begin=1218.75m
+epoch=45.398 w/s=575.55 train_ppl=584.697 lr=0.011 time_since_begin=1221.16m
+epoch=45.497 w/s=575.65 train_ppl=584.827 lr=0.011 time_since_begin=1223.61m
+epoch=45.597 w/s=575.77 train_ppl=584.612 lr=0.011 time_since_begin=1226.04m
+epoch=45.696 w/s=575.89 train_ppl=584.270 lr=0.011 time_since_begin=1228.46m
+epoch=45.796 w/s=576.00 train_ppl=583.286 lr=0.011 time_since_begin=1230.90m
+epoch=45.895 w/s=576.12 train_ppl=583.501 lr=0.011 time_since_begin=1233.32m
+epoch=45.995 w/s=576.23 train_ppl=583.262 lr=0.011 time_since_begin=1235.74m
+epoch=46 ppl-valid=83.161 ppl-test=78.756
+epoch=46.099 w/s=575.10 train_ppl=582.602 lr=0.010 time_since_begin=1241.00m
+epoch=46.199 w/s=575.23 train_ppl=581.898 lr=0.010 time_since_begin=1243.39m
+epoch=46.298 w/s=575.34 train_ppl=581.925 lr=0.010 time_since_begin=1245.83m
+epoch=46.398 w/s=575.46 train_ppl=581.799 lr=0.010 time_since_begin=1248.24m
+epoch=46.497 w/s=575.58 train_ppl=581.265 lr=0.010 time_since_begin=1250.65m
+epoch=46.597 w/s=575.70 train_ppl=581.172 lr=0.010 time_since_begin=1253.07m
+epoch=46.696 w/s=575.81 train_ppl=581.086 lr=0.010 time_since_begin=1255.51m
+epoch=46.796 w/s=575.91 train_ppl=581.462 lr=0.010 time_since_begin=1257.96m
+epoch=46.895 w/s=576.03 train_ppl=580.581 lr=0.010 time_since_begin=1260.38m
+epoch=46.995 w/s=576.15 train_ppl=580.751 lr=0.010 time_since_begin=1262.80m
+epoch=47 ppl-valid=83.146 ppl-test=78.758
+epoch=47.099 w/s=575.04 train_ppl=580.863 lr=0.009 time_since_begin=1268.05m
+epoch=47.199 w/s=575.17 train_ppl=581.395 lr=0.009 time_since_begin=1270.44m
+epoch=47.298 w/s=575.29 train_ppl=581.235 lr=0.009 time_since_begin=1272.84m
+epoch=47.398 w/s=575.42 train_ppl=580.567 lr=0.009 time_since_begin=1275.24m
+epoch=47.497 w/s=575.54 train_ppl=580.628 lr=0.009 time_since_begin=1277.65m
+epoch=47.597 w/s=575.65 train_ppl=579.777 lr=0.009 time_since_begin=1280.08m
+epoch=47.696 w/s=575.77 train_ppl=579.055 lr=0.009 time_since_begin=1282.49m
+epoch=47.796 w/s=575.89 train_ppl=578.964 lr=0.009 time_since_begin=1284.90m
+epoch=47.895 w/s=576.01 train_ppl=579.222 lr=0.009 time_since_begin=1287.29m
+epoch=47.995 w/s=576.13 train_ppl=578.919 lr=0.009 time_since_begin=1289.70m
+epoch=48 ppl-valid=83.162 ppl-test=78.741
+epoch=48.099 w/s=575.04 train_ppl=578.047 lr=0.008 time_since_begin=1294.97m
+epoch=48.199 w/s=575.17 train_ppl=578.471 lr=0.008 time_since_begin=1297.35m
+epoch=48.298 w/s=575.28 train_ppl=578.083 lr=0.008 time_since_begin=1299.78m
+epoch=48.398 w/s=575.41 train_ppl=578.459 lr=0.008 time_since_begin=1302.16m
+epoch=48.497 w/s=575.54 train_ppl=578.660 lr=0.008 time_since_begin=1304.56m
+epoch=48.597 w/s=575.66 train_ppl=578.528 lr=0.008 time_since_begin=1306.94m
+epoch=48.696 w/s=575.81 train_ppl=578.489 lr=0.008 time_since_begin=1309.28m
+epoch=48.796 w/s=575.93 train_ppl=578.116 lr=0.008 time_since_begin=1311.68m
+epoch=48.895 w/s=576.06 train_ppl=577.419 lr=0.008 time_since_begin=1314.06m
+epoch=48.995 w/s=576.20 train_ppl=576.683 lr=0.008 time_since_begin=1316.42m
+epoch=49 ppl-valid=83.171 ppl-test=78.733
+epoch=49.099 w/s=575.13 train_ppl=576.865 lr=0.007 time_since_begin=1321.70m
+epoch=49.199 w/s=575.24 train_ppl=575.931 lr=0.007 time_since_begin=1324.12m
+epoch=49.298 w/s=575.37 train_ppl=575.516 lr=0.007 time_since_begin=1326.49m
+epoch=49.398 w/s=575.48 train_ppl=575.013 lr=0.007 time_since_begin=1328.90m
+epoch=49.497 w/s=575.60 train_ppl=574.923 lr=0.007 time_since_begin=1331.31m
+epoch=49.597 w/s=575.72 train_ppl=575.804 lr=0.007 time_since_begin=1333.71m
+epoch=49.696 w/s=575.83 train_ppl=576.207 lr=0.007 time_since_begin=1336.13m
+epoch=49.796 w/s=575.95 train_ppl=576.018 lr=0.007 time_since_begin=1338.53m
+epoch=49.895 w/s=576.06 train_ppl=576.370 lr=0.007 time_since_begin=1340.95m
+epoch=49.995 w/s=576.16 train_ppl=576.341 lr=0.007 time_since_begin=1343.38m
+epoch=50 ppl-valid=83.145 ppl-test=78.719
+epoch=50.099 w/s=575.10 train_ppl=577.457 lr=0.006 time_since_begin=1348.67m
+epoch=50.199 w/s=575.22 train_ppl=576.833 lr=0.006 time_since_begin=1351.08m
+epoch=50.298 w/s=575.34 train_ppl=576.947 lr=0.006 time_since_begin=1353.48m
+epoch=50.398 w/s=575.45 train_ppl=576.840 lr=0.006 time_since_begin=1355.88m
+epoch=50.497 w/s=575.56 train_ppl=575.906 lr=0.006 time_since_begin=1358.29m
+epoch=50.597 w/s=575.68 train_ppl=574.783 lr=0.006 time_since_begin=1360.70m
+epoch=50.696 w/s=575.78 train_ppl=574.750 lr=0.006 time_since_begin=1363.13m
+epoch=50.796 w/s=575.89 train_ppl=574.940 lr=0.006 time_since_begin=1365.54m
+epoch=50.895 w/s=576.01 train_ppl=574.222 lr=0.006 time_since_begin=1367.94m
+epoch=50.995 w/s=576.13 train_ppl=574.821 lr=0.006 time_since_begin=1370.32m
+epoch=51 ppl-valid=83.161 ppl-test=78.741
+epoch=51.099 w/s=575.09 train_ppl=573.939 lr=0.005 time_since_begin=1375.62m
+epoch=51.199 w/s=575.19 train_ppl=574.060 lr=0.005 time_since_begin=1378.06m
+epoch=51.298 w/s=575.29 train_ppl=573.213 lr=0.005 time_since_begin=1380.50m
+epoch=51.398 w/s=575.39 train_ppl=572.927 lr=0.005 time_since_begin=1382.93m
+epoch=51.497 w/s=575.51 train_ppl=572.525 lr=0.005 time_since_begin=1385.33m
+epoch=51.597 w/s=575.62 train_ppl=572.706 lr=0.005 time_since_begin=1387.74m
+epoch=51.696 w/s=575.73 train_ppl=571.887 lr=0.005 time_since_begin=1390.13m
+epoch=51.796 w/s=575.85 train_ppl=572.272 lr=0.005 time_since_begin=1392.52m
+epoch=51.895 w/s=575.96 train_ppl=572.188 lr=0.005 time_since_begin=1394.92m
+epoch=51.995 w/s=576.06 train_ppl=571.681 lr=0.005 time_since_begin=1397.37m
+epoch=52 ppl-valid=83.196 ppl-test=78.760
+epoch=52.099 w/s=575.05 train_ppl=571.398 lr=0.004 time_since_begin=1402.64m
+epoch=52.199 w/s=575.17 train_ppl=571.510 lr=0.004 time_since_begin=1405.03m
+epoch=52.298 w/s=575.29 train_ppl=571.390 lr=0.004 time_since_begin=1407.40m
+epoch=52.398 w/s=575.39 train_ppl=571.744 lr=0.004 time_since_begin=1409.84m
+epoch=52.497 w/s=575.51 train_ppl=571.880 lr=0.004 time_since_begin=1412.22m
+epoch=52.597 w/s=575.61 train_ppl=571.845 lr=0.004 time_since_begin=1414.64m
+epoch=52.696 w/s=575.74 train_ppl=571.658 lr=0.004 time_since_begin=1417.00m
+epoch=52.796 w/s=575.85 train_ppl=570.324 lr=0.004 time_since_begin=1419.40m
+epoch=52.895 w/s=575.96 train_ppl=570.229 lr=0.004 time_since_begin=1421.80m
+epoch=52.995 w/s=576.07 train_ppl=570.152 lr=0.004 time_since_begin=1424.21m
+epoch=53 ppl-valid=83.190 ppl-test=78.746
+epoch=53.099 w/s=575.07 train_ppl=570.042 lr=0.004 time_since_begin=1429.51m
+epoch=53.199 w/s=575.17 train_ppl=569.768 lr=0.004 time_since_begin=1431.93m
+epoch=53.298 w/s=575.29 train_ppl=571.034 lr=0.004 time_since_begin=1434.32m
+epoch=53.398 w/s=575.39 train_ppl=570.931 lr=0.004 time_since_begin=1436.74m
+epoch=53.497 w/s=575.50 train_ppl=571.256 lr=0.004 time_since_begin=1439.14m
+epoch=53.597 w/s=575.61 train_ppl=570.865 lr=0.004 time_since_begin=1441.55m
+epoch=53.696 w/s=575.72 train_ppl=571.769 lr=0.004 time_since_begin=1443.95m
+epoch=53.796 w/s=575.82 train_ppl=571.853 lr=0.004 time_since_begin=1446.38m
+epoch=53.895 w/s=575.93 train_ppl=572.052 lr=0.004 time_since_begin=1448.75m
+epoch=53.995 w/s=576.04 train_ppl=571.859 lr=0.004 time_since_begin=1451.15m
+epoch=54 ppl-valid=83.144 ppl-test=78.713
+epoch=54.099 w/s=575.07 train_ppl=572.520 lr=0.003 time_since_begin=1456.43m
+epoch=54.199 w/s=575.19 train_ppl=572.820 lr=0.003 time_since_begin=1458.81m
+epoch=54.298 w/s=575.29 train_ppl=571.982 lr=0.003 time_since_begin=1461.23m
+epoch=54.398 w/s=575.40 train_ppl=571.861 lr=0.003 time_since_begin=1463.63m
+epoch=54.497 w/s=575.52 train_ppl=571.807 lr=0.003 time_since_begin=1466.00m
+epoch=54.597 w/s=575.62 train_ppl=572.231 lr=0.003 time_since_begin=1468.40m
+epoch=54.696 w/s=575.72 train_ppl=571.392 lr=0.003 time_since_begin=1470.82m
+epoch=54.796 w/s=575.85 train_ppl=571.961 lr=0.003 time_since_begin=1473.19m
+epoch=54.895 w/s=575.96 train_ppl=571.442 lr=0.003 time_since_begin=1475.56m
+epoch=54.995 w/s=576.07 train_ppl=571.599 lr=0.003 time_since_begin=1477.95m
+epoch=55 ppl-valid=83.155 ppl-test=78.718
+ppl-valid=83.155 ppl-test=78.718
+compute the WER...
+wer=7.323 lmscale=0.600 rescore_time=4329.839m
+../egs/ptb_wsj0/lstm/lstm_1500x2
+{
+    "batch_size": 20,
+    "dropout": 0.65,
+    "epoch_num": 55,
+    "hidden_layers": 2,
+    "hidden_size": 1500,
+    "init_weight": 0.04,
+    "learning_rate": 1.0,
+    "lr_decay": 0.8695652173913044,
+    "lr_decay_when": 14,
+    "max_grad_norm": 10,
+    "step_size": 35,
+    "vocab_size": 10000
+}
+restore the exist model files: ../egs/ptb_wsj0/lstm/lstm_1500x2/model.ckpt
+../egs/ptb_wsj0/lstm/lstm_1500x2
+{
+    "batch_size": 20,
+    "dropout": 0.65,
+    "epoch_num": 55,
+    "hidden_layers": 2,
+    "hidden_size": 1500,
+    "init_weight": 0.04,
+    "learning_rate": 1.0,
+    "lr_decay": 0.8695652173913044,
+    "lr_decay_when": 14,
+    "max_grad_norm": 10,
+    "step_size": 35,
+    "vocab_size": 10000
+}
+restore the exist model files: ../egs/ptb_wsj0/lstm/lstm_1500x2/model.ckpt
+ppl-valid=83.155 ppl-test=78.718
+compute the WER...
+[keep-state] wer=7.323 lmscale=0.600
+../egs/ptb_wsj0/lstm/lstm_1500x2
+{
+    "batch_size": 20,
+    "dropout": 0.65,
+    "epoch_num": 55,
+    "hidden_layers": 2,
+    "hidden_size": 1500,
+    "init_weight": 0.04,
+    "learning_rate": 1.0,
+    "lr_decay": 0.8695652173913044,
+    "lr_decay_when": 14,
+    "max_grad_norm": 10,
+    "step_size": 35,
+    "vocab_size": 10000
+}
+restore the exist model files: ../egs/ptb_wsj0/lstm/lstm_1500x2/model.ckpt
+ppl-valid=83.155 ppl-test=78.718
+compute the WER...
+[keep-state] wer=7.323 lmscale=0.600
+rescore time = 50.349m
+[keep-state] wer=7.360 lmscale=0.500
+../egs/ptb_wsj0/lstm/lstm_1500x2
+{
+    "batch_size": 20,
+    "dropout": 0.65,
+    "epoch_num": 55,
+    "hidden_layers": 2,
+    "hidden_size": 1500,
+    "init_weight": 0.04,
+    "learning_rate": 1.0,
+    "lr_decay": 0.8695652173913044,
+    "lr_decay_when": 14,
+    "max_grad_norm": 10,
+    "step_size": 35,
+    "vocab_size": 10000
+}
+restore the exist model files: ../egs/ptb_wsj0/lstm/lstm_1500x2/model.ckpt
+ppl-valid=83.155 ppl-test=78.718
+compute the WER...
+[keep-state] wer=7.323 lmscale=0.600
+[keep-state] wer=7.360 lmscale=0.500
+rescore time = 48.179m
+[keep-state] wer=8.182 lmscale=0.400
+../egs/ptb_wsj0/lstm/lstm_1500x2
+{
+    "batch_size": 20,
+    "dropout": 0.65,
+    "epoch_num": 55,
+    "hidden_layers": 2,
+    "hidden_size": 1500,
+    "init_weight": 0.04,
+    "learning_rate": 1.0,
+    "lr_decay": 0.8695652173913044,
+    "lr_decay_when": 14,
+    "max_grad_norm": 10,
+    "step_size": 35,
+    "vocab_size": 10000
+}
+restore the exist model files: ../egs/ptb_wsj0/lstm/lstm_1500x2/model.ckpt
+ppl-valid=83.155 ppl-test=78.718
+compute the WER...
+[keep-state] wer=7.323 lmscale=0.600
+[reset-state] wer=7.360 lmscale=0.500
+[shuffle] wer=8.182 lmscale=0.400
+rescore time = 50.139m
+[shuffle_reset] wer=7.360 lmscale=0.500

@@ -1,18 +1,15 @@
 import numpy as np
+# from scipy.misc import logsumexp
 
 
-def log_sum(logprobs):
-    # logprobs = np.array(logprobs)
-    # s = logprobs[0]
-    # for logp in logprobs[1:]:
-    #     s = np.logaddexp(logp, s)
-    # return s
-    max_logp = np.max(logprobs)
-    return np.log(np.sum(np.exp(logprobs - max_logp))) + max_logp
+def logsumexp(logprobs, axis=None):
+    m = np.max(logprobs, axis=axis, keepdims=True)
+    return np.log(np.sum(np.exp(logprobs - m), axis=axis)) + np.squeeze(m, axis)
+    # return logsumexp(logprobs, axis=axis)
 
 
 def log_normalize(logprobs):
-    return np.array(logprobs) - log_sum(logprobs)
+    return np.array(logprobs) - logsumexp(logprobs)
 
 
 def linear_normalize(probs):
@@ -143,7 +140,7 @@ class VecIter:
         if init_vec is not None:
             self.buf = list(init_vec)
 
-    def next(self):
+    def __next__(self):
         if self.buf[-1] == self.max_value:
             raise StopIteration
         res = list(self.buf)
@@ -194,6 +191,34 @@ class FastProb(object):
                 return i
         return left
 
+
+def map_list(keys, max_value):
+    """input a list of int and map to a int.
+        For example:
+            keys=[1, 2], max_value=10, return=1 * 10^0 + 2 * 10^1 = 21
+
+        depending on densefeat.ngram_enumerate
+    """
+    res = 0
+    for i, key in enumerate(reversed(keys)):
+        res += key * (max_value ** i)
+    return res
+    # return int(np.sum(keys * (max_value ** np.linspace(0, len(keys)-1, len(keys)))))
+
+
+def unfold_list(mapped_int, max_value, list_len=None):
+    """revise the process of map_list, i.e. int to list"""
+    res = []
+    while mapped_int > 0:
+        res.append(mapped_int % max_value)
+        mapped_int = mapped_int // max_value
+
+    if list_len is not None:
+        if list_len < len(res):
+            raise TypeError('[{}] the given length[{}] is too less for the result={}'.format(__name__, list_len, res))
+        res += [0] * (list_len - len(res))
+
+    return list(reversed(res))
 
 
 

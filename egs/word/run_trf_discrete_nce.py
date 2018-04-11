@@ -4,7 +4,7 @@ import sys
 import numpy as np
 
 from base import *
-from trf.nce import *
+from trf.nce import trf_fixlen as trf
 
 
 def create_name(config):
@@ -33,7 +33,7 @@ def main(_):
 
     # config.prior_model_path = 'lstm/lstm_e32_h32x1_BNCE_SGD/model.ckpt'
     # feat config
-    config.feat_config.feat_type_file = '../../tfcode/feat/g4.fs'
+    config.feat_config.feat_type_file = '../../tfcode/feat/g2.fs'
     config.feat_config.feat_cluster = None
 
     # net config
@@ -53,14 +53,14 @@ def main(_):
     # wb.rmdir(logdirs)
     m = trf.TRF(config, data, logdir=logdir, device='/gpu:0')
 
-    sv = tf.train.Supervisor(logdir=os.path.join(logdir, 'logs'),
-                             global_step=m.global_step)
-    sv.summary_writer.add_graph(tf.get_default_graph())  # write the graph to logs
-    session_config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
-    session_config.gpu_options.allow_growth = True
-    with sv.managed_session(config=session_config) as session:
-        with session.as_default():
-            m.train(operation=trf.DefaultOps(m, reader.word_nbest()))
+    # sv = tf.train.Supervisor(logdir=os.path.join(logdir, 'logs'),
+    #                          global_step=m.global_step)
+    # sv.summary_writer.add_graph(tf.get_default_graph())  # write the graph to logs
+    # session_config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
+    # session_config.gpu_options.allow_growth = True
+    # with sv.managed_session(config=session_config) as session:
+    #     with session.as_default():
+    m.train(operation=trf.DefaultOps(m, reader.word_nbest()))
 
 
 if __name__ == '__main__':

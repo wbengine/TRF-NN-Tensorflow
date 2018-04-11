@@ -1,0 +1,134 @@
+../egs/ptb_wsj0/lstm/lstm_200x2
+{
+    "batch_size": 20,
+    "dropout": 0,
+    "epoch_num": 13,
+    "hidden_layers": 2,
+    "hidden_size": 200,
+    "init_weight": 0.1,
+    "learning_rate": 1.0,
+    "lr_decay": 0.5,
+    "lr_decay_when": 4,
+    "max_grad_norm": 5,
+    "step_size": 20,
+    "vocab_size": 10000
+}
+param_num=4,651,600
+epoch=0.100 w/s=3651.56 train_ppl=866.437 lr=1.000 time_since_begin=0.42m
+epoch=0.200 w/s=3680.76 train_ppl=636.836 lr=1.000 time_since_begin=0.84m
+epoch=0.300 w/s=3676.88 train_ppl=515.462 lr=1.000 time_since_begin=1.26m
+epoch=0.399 w/s=3675.35 train_ppl=441.814 lr=1.000 time_since_begin=1.68m
+epoch=0.499 w/s=3671.99 train_ppl=396.164 lr=1.000 time_since_begin=2.11m
+epoch=0.599 w/s=3670.77 train_ppl=355.138 lr=1.000 time_since_begin=2.53m
+epoch=0.699 w/s=3664.15 train_ppl=327.156 lr=1.000 time_since_begin=2.95m
+epoch=0.799 w/s=3663.66 train_ppl=306.398 lr=1.000 time_since_begin=3.38m
+epoch=0.899 w/s=3659.48 train_ppl=286.664 lr=1.000 time_since_begin=3.80m
+epoch=0.999 w/s=3654.85 train_ppl=270.945 lr=1.000 time_since_begin=4.23m
+epoch=1 ppl-valid=177.511 ppl-test=175.309
+epoch=1.100 w/s=2939.63 train_ppl=227.412 lr=1.000 time_since_begin=5.79m
+epoch=1.200 w/s=2983.68 train_ppl=205.174 lr=1.000 time_since_begin=6.23m
+epoch=1.300 w/s=3025.47 train_ppl=188.650 lr=1.000 time_since_begin=6.65m
+epoch=1.399 w/s=3061.20 train_ppl=176.251 lr=1.000 time_since_begin=7.08m
+epoch=1.499 w/s=3095.41 train_ppl=166.053 lr=1.000 time_since_begin=7.50m
+epoch=1.599 w/s=3123.83 train_ppl=157.481 lr=1.000 time_since_begin=7.93m
+epoch=1.699 w/s=3149.34 train_ppl=150.579 lr=1.000 time_since_begin=8.36m
+epoch=1.799 w/s=3171.91 train_ppl=144.597 lr=1.000 time_since_begin=8.78m
+epoch=1.899 w/s=3193.42 train_ppl=138.608 lr=1.000 time_since_begin=9.21m
+epoch=1.999 w/s=3212.31 train_ppl=133.803 lr=1.000 time_since_begin=9.64m
+../egs/ptb_wsj0/lstm/lstm_200x2
+{
+    "batch_size": 20,
+    "dropout": 0,
+    "epoch_num": 13,
+    "hidden_layers": 2,
+    "hidden_size": 200,
+    "init_weight": 0.1,
+    "learning_rate": 1.0,
+    "lr_decay": 0.5,
+    "lr_decay_when": 4,
+    "max_grad_norm": 5,
+    "step_size": 20,
+    "vocab_size": 10000
+}
+lstmlm/word_embedding:0
+lstmlm/rnn/multi_rnn_cell/cell_0/basic_lstm_cell/weights:0
+lstmlm/rnn/multi_rnn_cell/cell_0/basic_lstm_cell/biases:0
+lstmlm/rnn/multi_rnn_cell/cell_1/basic_lstm_cell/weights:0
+lstmlm/rnn/multi_rnn_cell/cell_1/basic_lstm_cell/biases:0
+lstmlm/w:0
+lstmlm/b:0
+param_num=4,651,600
+restore the exist model files: ../egs/ptb_wsj0/lstm/lstm_200x2\model.ckpt
+../egs/ptb_wsj0/lstm/lstm_200x2
+{
+    "batch_size": 20,
+    "dropout": 0,
+    "epoch_num": 13,
+    "hidden_layers": 2,
+    "hidden_size": 200,
+    "init_weight": 0.1,
+    "learning_rate": 1.0,
+    "lr_decay": 0.5,
+    "lr_decay_when": 4,
+    "max_grad_norm": 5,
+    "step_size": 20,
+    "vocab_size": 10000
+}
+lstmlm/word_embedding:0
+lstmlm/rnn/multi_rnn_cell/cell_0/basic_lstm_cell/weights:0
+lstmlm/rnn/multi_rnn_cell/cell_0/basic_lstm_cell/biases:0
+lstmlm/rnn/multi_rnn_cell/cell_1/basic_lstm_cell/weights:0
+lstmlm/rnn/multi_rnn_cell/cell_1/basic_lstm_cell/biases:0
+lstmlm/w:0
+lstmlm/b:0
+param_num=4,651,600
+restore the exist model files: ../egs/ptb_wsj0/lstm/lstm_200x2\model.ckpt
+../egs/ptb_wsj0/lstm/lstm_200x2
+{
+    "batch_size": 20,
+    "dropout": 0,
+    "epoch_num": 13,
+    "hidden_layers": 2,
+    "hidden_size": 200,
+    "init_weight": 0.1,
+    "learning_rate": 1.0,
+    "lr_decay": 0.5,
+    "lr_decay_when": 4,
+    "max_grad_norm": 5,
+    "step_size": 20,
+    "vocab_size": 10000
+}
+lstmlm/word_embedding:0
+lstmlm/rnn/multi_rnn_cell/cell_0/basic_lstm_cell/weights:0
+lstmlm/rnn/multi_rnn_cell/cell_0/basic_lstm_cell/biases:0
+lstmlm/rnn/multi_rnn_cell/cell_1/basic_lstm_cell/weights:0
+lstmlm/rnn/multi_rnn_cell/cell_1/basic_lstm_cell/biases:0
+lstmlm/w:0
+lstmlm/b:0
+param_num=4,651,600
+restore the exist model files: ../egs/ptb_wsj0/lstm/lstm_200x2\model.ckpt
+../egs/ptb_wsj0/lstm/lstm_200x2
+{
+    "batch_size": 20,
+    "dropout": 0,
+    "epoch_num": 13,
+    "hidden_layers": 2,
+    "hidden_size": 200,
+    "init_weight": 0.1,
+    "learning_rate": 1.0,
+    "lr_decay": 0.5,
+    "lr_decay_when": 4,
+    "max_grad_norm": 5,
+    "step_size": 20,
+    "vocab_size": 10000
+}
+lstmlm/word_embedding:0
+lstmlm/rnn/multi_rnn_cell/cell_0/basic_lstm_cell/weights:0
+lstmlm/rnn/multi_rnn_cell/cell_0/basic_lstm_cell/biases:0
+lstmlm/rnn/multi_rnn_cell/cell_1/basic_lstm_cell/weights:0
+lstmlm/rnn/multi_rnn_cell/cell_1/basic_lstm_cell/biases:0
+lstmlm/w:0
+lstmlm/b:0
+[('Train/lstmlm/global_step', []), ('Train/lstmlm/learning_rate', []), ('lstmlm/b', [10000]), ('lstmlm/rnn/multi_rnn_cell/cell_0/basic_lstm_cell/biases', [800]), ('lstmlm/rnn/multi_rnn_cell/cell_0/basic_lstm_cell/weights', [400, 800]), ('lstmlm/rnn/multi_rnn_cell/cell_1/basic_lstm_cell/biases', [800]), ('lstmlm/rnn/multi_rnn_cell/cell_1/basic_lstm_cell/weights', [400, 800]), ('lstmlm/w', [200, 10000]), ('lstmlm/word_embedding', [10000, 200])]
+param_num=4,651,600
+restore the exist model files: ../egs/ptb_wsj0/lstm/lstm_200x2\model.ckpt

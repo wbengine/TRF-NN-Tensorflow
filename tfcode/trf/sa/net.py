@@ -64,7 +64,7 @@ class NetBase(object):
                 self.grad_clean = []
                 self.grad_bufs = []
                 for v in self.update_vars:
-                    g = tf.get_variable(v.name.split(':')[0] + '_g', shape=v.shape, dtype=v.dtype, trainable=False)
+                    g = tf.get_variable(v.name.split(':')[0] + '_g', shape=v.shape, dtype=tf.float32, trainable=False)
                     self.grad_bufs.append(g)
                     clean_g = tf.assign(g, tf.zeros_like(g))
                     self.grad_clean.append(clean_g)
@@ -77,10 +77,12 @@ class NetBase(object):
                 self._scalers = tf.placeholder(tf.float32, [batch_size], name='input_scalers')
 
                 # compute d\phi / d\theta * scaler and add to the grad_vars
-                grads = tf.gradients(tf.reduce_sum(self.phi * self._scalers), self.update_vars)
+                grads = tf.gradients(self.phi, self.update_vars, self._scalers)
                 self.grad_update = []
                 for g, g_add in zip(self.grad_bufs, grads):
                     self.grad_update.append(tf.assign_sub(g, g_add))  # to compute the -grad
+
+                self.grad_norm = tf.global_norm(self.grad_bufs)
 
                 ###################################
                 # training
@@ -119,3 +121,6 @@ class NetBase(object):
         # update parameters
         self.trainop.set_lr(tf.get_default_session(), learning_rate=learning_rate)
         self.trainop.update(tf.get_default_session(), None)
+
+        # return the gradient norm
+        return tf.get_default_session().run(self.grad_norm)

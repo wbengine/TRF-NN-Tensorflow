@@ -3,7 +3,8 @@ import os
 import numpy as np
 
 # the binary dir for word2vec tools
-bindir = '/mnt/workspace/wangbin/work/TRF-NN-tensorflow/tools/word2vec/c/'
+# bindir = '/mnt/workspace/wangbin/work/TRF-NN-tensorflow/tools/word2vec/c/'
+bindir = os.path.join(os.path.split(os.path.realpath(__file__))[0], '../../tools/word2vec/c/')
 
 
 def word2vec(finput, foutput, dim):

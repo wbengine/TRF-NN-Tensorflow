@@ -3,7 +3,7 @@ import os
 
 from base import *
 from lm import *
-from trf.common import feat
+from trf.common import feat2 as feat
 from trf.sa import net
 
 
@@ -32,6 +32,9 @@ class FeatConfig(BaseConfig):
     def __str__(self):
         feat_name = os.path.split(self.feat_type_file)[-1]
         feat_name = os.path.splitext(feat_name)[0]
+
+        if self.feat_cluster is not None:
+            feat_name += '_c{}'.format(self.feat_cluster)
         return 'feat{}_L2reg{:.2e}'.format(feat_name, self.L2_reg)
 
 
@@ -51,11 +54,14 @@ class Base(object):
     def get_value(self, seq_list):
         return np.zeros(len(seq_list))
 
+    def get_value_depend(self, seq_list, pos):
+        return self.get_value(seq_list)
+
     def initialize(self):
         pass
 
     def update(self, data_list, data_scalars, sample_list, sample_scalars, learning_rate=1.0):
-        pass
+        return None
 
     def save(self, fname):
         pass
@@ -80,35 +86,34 @@ class FeatPhi(Base):
         # self.len_factor = self.config.pi_true / self.config.pi_0
 
         wftype, cftype = feat.separate_type(feat.read_feattype_file(self.config.feat_type_file))
-        self.wfeat = feat.FastFeats(wftype)
-        if self.config.feat_cluster is not None:
-            self.cfeat = feat.FastFeats(cftype)
-        else:
-            self.cfeat = None
+        if self.data.word_to_class is not None:
+            wftype.update(cftype)
+
+        # if wb.is_linux():
+        #     self.feat = feat.FastFeats(wftype)
+        # else:
+        self.feat = feat.Feats(wftype)
 
         self.update_op = None
         self.data_exp = None
         self.data_var = None
 
     def get_param_num(self):
-        n = self.wfeat.num
-        if self.cfeat is None:
-            return n
-
-        return n + self.cfeat.num
+        return self.feat.num
 
     def get_params(self):
-        v = self.wfeat.values
-        if self.cfeat is not None:
-            v = np.concatenate([v, self.cfeat.values])
-        return v
+        return self.feat.values
 
     def get_value(self, seq_list):
-        w1 = self.wfeat.seq_list_weight(seq_list)
-        if self.cfeat is None:
-            return w1
+        w = self.feat.seq_list_weight(
+            seq.hard_class_seqs(seq_list, self.data.word_to_class)
+        )
+        return np.array(w)
 
-        w2 = self.wfeat.seq_list_weight(self.data.seqs_to_class(seq_list))
+    def get_value_depend(self, word_list, pos):
+        seq_list = seq.hard_class_seqs(word_list, self.data.word_to_class)
+        w1 = self.feat.seq_list_weight(seq_list, (0, pos))
+        w2 = self.feat.seq_list_weight(seq_list, (1, pos))
         return np.array(w1) + np.array(w2)
 
     def feat_count(self, cur_feat, seq_list, seq_scalar):
@@ -130,12 +135,10 @@ class FeatPhi(Base):
         return buf
 
     def get_exp(self, seq_list, seq_scalar):
-        exp = self.feat_count(self.wfeat, seq_list, seq_scalar)
-        if self.cfeat is None:
-            return exp
-
-        exp2 = self.feat_count(self.cfeat, self.data.seqs_to_class(seq_list), seq_scalar)
-        return np.concatenate([exp, exp2])
+        exp = self.feat_count(self.feat,
+                              seq.hard_class_seqs(seq_list, self.data.word_to_class),
+                              seq_scalar)
+        return exp
 
     def feat_count2(self, cur_feat, seq_list, seq_scalar):
         """
@@ -159,12 +162,10 @@ class FeatPhi(Base):
         return buf
 
     def get_exp2(self, seq_list, seq_scalar):
-        exp = self.feat_count2(self.wfeat, seq_list, seq_scalar)
-        if self.cfeat is None:
-            return exp
-
-        exp2 = self.feat_count2(self.cfeat, self.data.seqs_to_class(seq_list), seq_scalar)
-        return np.concatenate([exp, exp2])
+        exp = self.feat_count2(self.feat,
+                               seq.hard_class_seqs(seq_list, self.data.word_to_class),
+                               seq_scalar)
+        return exp
 
     def get_gradient(self, data_list, data_scalar, sample_list, sample_scalar):
 
@@ -177,21 +178,22 @@ class FeatPhi(Base):
         return exp_d - exp_s - self.config.L2_reg * self.get_params()
 
     def update(self, data_list, data_scalars, sample_list, sample_scalars, learning_rate=1.0):
-        g = self.get_gradient(data_list, data_scalars, sample_list, sample_scalars)
+        exp_d = self.get_exp(data_list, data_scalars) if self.data_exp is None else self.data_exp
+        exp_s = self.get_exp(sample_list, sample_scalars)
+        g = exp_d - exp_s - self.config.L2_reg * self.get_params()
+
+        g_norm = np.sqrt(np.sum(g * g))
         if self.data_var is not None:
             g /= self.data_var
         d = self.update_op.update(-g, learning_rate)
+        self.feat.values += d
 
-        self.wfeat.values += d[0: self.wfeat.num]
-        if self.cfeat is not None:
-            self.cfeat.values += d[self.wfeat.num:]
+        return g_norm
 
     def initialize(self):
-        if self.wfeat.num == 0:
+        if self.feat.num == 0:
             with wb.processing('load features ...'):
-                self.wfeat.load_from_seqs(self.data.datas[0])
-                if self.cfeat is not None:
-                    self.cfeat.load_from_seqs(self.data.seqs_to_class(self.data.datas[0]))
+                self.feat.load_from_seqs(seq.hard_class_seqs(self.data.datas[0], self.data.word_to_class))
         else:
             print('[{}.{}] Features exist. Don\'t reload features'.format(__name__, self.__class__.__name__))
 
@@ -209,15 +211,11 @@ class FeatPhi(Base):
 
     def save(self, fname):
         with open(fname + '.feat', 'wt') as f:
-            self.wfeat.save(f)
-            if self.cfeat is not None:
-                self.cfeat.save(f)
+            self.feat.save(f)
 
     def restore(self, fname):
         with open(fname + '.feat', 'rt') as f:
-            self.wfeat.restore(f)
-            if self.cfeat is not None:
-                self.cfeat.restore(f)
+            self.feat.restore(f)
 
     def compute_data_var(self, seq_list):
 
@@ -254,7 +252,7 @@ class NetPhi(Base):
         pass
 
     def update(self, data_list, data_scalars, sample_list, sample_scalars, learning_rate=1.0):
-        self.train_net.update(data_list, data_scalars, sample_list, sample_scalars, learning_rate=learning_rate)
+        return self.train_net.update(data_list, data_scalars, sample_list, sample_scalars, learning_rate=learning_rate)
 
     def save(self, fname):
         self.saver.save(tf.get_default_session(), fname + '.ckpt')
@@ -270,7 +268,7 @@ class NormBase(object):
     def set_logz1(self, logz1):
         pass
 
-    def update(self, seq_list, learning_rate=1.0):
+    def update(self, seq_list, scalar=None, learning_rate=1.0):
         pass
 
     def save(self, fname):
@@ -316,7 +314,7 @@ class Norm(NormBase):
 
         self.zeta = np.array(self.config.init_logz) - self.config.init_logz[0]
         self.logz1 = self.config.init_logz[0]
-        # self.update_op = wb.ArrayUpdate(self.zeta, {'name': self.opt_method})
+        self.update_op = wb.ArrayUpdate(self.zeta, {'name': self.opt_method})
 
     def get_logz(self, lengths=None):
         if lengths is None:
@@ -331,19 +329,25 @@ class Norm(NormBase):
         self.logz1 = logz[0]
         self.zeta = logz - logz[0]
 
-    def get_gradient(self, sample_list):
+    def get_gradient(self, sample_list, scalar):
+
+        if scalar is None:
+            scalar = [1.0 / len(sample_list)] * len(sample_list)
+
         grad = np.zeros_like(self.zeta)
-        for x in sample_list:
-            grad[len(x) - self.config.min_len] += 1
-        grad /= len(sample_list)
+        for x, s in zip(sample_list, scalar):
+            grad[len(x) - self.config.min_len] += s
+        # grad /= len(sample_list)
         grad /= self.config.pi_0[self.config.min_len:]
         return grad
 
-    def update(self, seq_list, learning_rate=1.0):
-        g = self.get_gradient(seq_list)
+    def update(self, seq_list, scalar=None, learning_rate=1.0):
+        g = self.get_gradient(seq_list, scalar)
 
         self.zeta += np.clip(learning_rate * g, a_min=0, a_max=self.config.zeta_gap)
         self.zeta -= self.zeta[0]
+
+        return np.sqrt(np.sum(g * g))
 
     def save(self, fname):
         with open(fname, 'wt') as f:
@@ -363,3 +367,58 @@ class Norm(NormBase):
                 lens.append(int(a[0]))
                 zeta.append(float(a[1]))
             self.zeta = np.array(zeta)
+
+
+class NormLinear(NormBase):
+    def __init__(self, config, data, opt_method='sgd'):
+        self.config = config
+        self.data = data
+        self.opt_method = opt_method
+
+        self.logz1 = self.config.init_logz[0]
+        self.logz_inc = self.config.init_logz[1] - self.config.init_logz[0]
+
+        self.grad_const = np.dot(self.config.pi_true[self.config.min_len: self.config.max_len+1],
+                                 np.arange(0, self.config.max_len+1-self.config.min_len))
+
+        self.update_op = wb.ArrayUpdate([self.logz_inc], {'name': self.opt_method})
+
+    def get_logz(self, lengths=None):
+        if lengths is None:
+            lengths = list(range(self.config.min_len, self.config.max_len+1))
+        return self.logz1 + (np.array(lengths) - self.config.min_len) * self.logz_inc
+
+    def set_logz1(self, logz1):
+        self.logz1 = logz1
+
+    def get_gradient(self, sample_list, scalar):
+
+        if scalar is None:
+            scalar = [1.0 / len(sample_list)] * len(sample_list)
+
+        grad = 0
+        for x, s in zip(sample_list, scalar):
+            grad += s * (len(x) - self.config.min_len)
+        # grad /= len(sample_list)
+        grad -= self.grad_const
+        return grad
+
+    def update(self, seq_list, scalar=None, learning_rate=1.0):
+        g = self.get_gradient(seq_list, scalar)
+
+        self.logz_inc += self.update_op.update([-g], learning_rate)[0]
+
+        return g
+
+    def save(self, fname):
+        with open(fname, 'wt') as f:
+            f.write('logz1={}\n'.format(self.logz1))
+            f.write('logz_inc={}\n'.format(self.logz_inc))
+            f.write('len\tzeta\n')
+            for i, v in enumerate(self.get_logz()):
+                f.write('{}\t{}\n'.format(i + self.config.min_len, v))
+
+    def restore(self, fname):
+        with open(fname, 'rt') as f:
+            self.logz1 = float(f.readline().split('=')[-1])
+            self.logz_inc = float(f.readline().split('=')[-1])

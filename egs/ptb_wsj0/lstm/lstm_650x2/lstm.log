@@ -1,0 +1,65 @@
+./lstm/lstm_650x2
+{
+    "batch_size": 20,
+    "dropout": 0.5,
+    "embedding_size": 650,
+    "epoch_num": 39,
+    "hidden_layers": 2,
+    "hidden_size": 650,
+    "init_weight": 0.05,
+    "learning_rate": 1.0,
+    "lr_decay": 0.8,
+    "lr_decay_when": 6,
+    "max_grad_norm": 5,
+    "step_size": 35,
+    "vocab_size": 10000
+}
+param_num=19,775,200
+epoch=0.100 w/s=6246.18 train_ppl=1745.589 lr=1.000 time_since_begin=0.25m
+epoch=0.199 w/s=6391.54 train_ppl=1220.006 lr=1.000 time_since_begin=0.48m
+epoch=0.299 w/s=6440.16 train_ppl=983.710 lr=1.000 time_since_begin=0.72m
+epoch=0.398 w/s=6458.07 train_ppl=844.964 lr=1.000 time_since_begin=0.95m
+epoch=0.498 w/s=6472.86 train_ppl=745.893 lr=1.000 time_since_begin=1.19m
+epoch=0.597 w/s=6483.67 train_ppl=674.865 lr=1.000 time_since_begin=1.43m
+epoch=0.697 w/s=6492.13 train_ppl=615.589 lr=1.000 time_since_begin=1.66m
+epoch=0.796 w/s=6496.77 train_ppl=565.972 lr=1.000 time_since_begin=1.90m
+epoch=0.896 w/s=6501.22 train_ppl=523.928 lr=1.000 time_since_begin=2.13m
+epoch=0.995 w/s=6505.34 train_ppl=495.041 lr=1.000 time_since_begin=2.37m
+epoch=1 ppl-valid=256.252 ppl-test=248.489
+epoch=1.100 w/s=4553.34 train_ppl=407.357 lr=1.000 time_since_begin=3.74m
+epoch=1.199 w/s=4671.48 train_ppl=356.129 lr=1.000 time_since_begin=3.97m
+epoch=1.299 w/s=4776.21 train_ppl=322.340 lr=1.000 time_since_begin=4.21m
+epoch=1.398 w/s=4870.33 train_ppl=295.957 lr=1.000 time_since_begin=4.44m
+epoch=1.498 w/s=4954.84 train_ppl=274.258 lr=1.000 time_since_begin=4.68m
+epoch=1.597 w/s=5031.34 train_ppl=256.871 lr=1.000 time_since_begin=4.91m
+epoch=1.697 w/s=5100.57 train_ppl=241.503 lr=1.000 time_since_begin=5.15m
+epoch=1.796 w/s=5163.60 train_ppl=229.649 lr=1.000 time_since_begin=5.38m
+epoch=1.896 w/s=5221.52 train_ppl=218.959 lr=1.000 time_since_begin=5.62m
+epoch=1.995 w/s=5274.66 train_ppl=209.881 lr=1.000 time_since_begin=5.85m
+epoch=2 ppl-valid=175.814 ppl-test=170.755
+epoch=2.100 w/s=4498.71 train_ppl=201.431 lr=1.000 time_since_begin=7.22m
+epoch=2.199 w/s=4563.36 train_ppl=194.020 lr=1.000 time_since_begin=7.46m
+epoch=2.299 w/s=4624.93 train_ppl=188.048 lr=1.000 time_since_begin=7.69m
+epoch=2.398 w/s=4683.47 train_ppl=182.657 lr=1.000 time_since_begin=7.92m
+epoch=2.498 w/s=4738.61 train_ppl=177.557 lr=1.000 time_since_begin=8.15m
+epoch=2.597 w/s=4790.34 train_ppl=172.924 lr=1.000 time_since_begin=8.39m
+epoch=2.697 w/s=4839.42 train_ppl=168.101 lr=1.000 time_since_begin=8.62m
+epoch=2.796 w/s=4885.49 train_ppl=164.016 lr=1.000 time_since_begin=8.85m
+epoch=2.896 w/s=4928.92 train_ppl=160.197 lr=1.000 time_since_begin=9.09m
+epoch=2.995 w/s=4970.64 train_ppl=156.805 lr=1.000 time_since_begin=9.32m
+epoch=3 ppl-valid=144.781 ppl-test=140.254
+epoch=3.100 w/s=4472.39 train_ppl=153.326 lr=1.000 time_since_begin=10.72m
+epoch=3.199 w/s=4516.87 train_ppl=149.901 lr=1.000 time_since_begin=10.96m
+epoch=3.299 w/s=4559.50 train_ppl=147.213 lr=1.000 time_since_begin=11.19m
+epoch=3.398 w/s=4600.44 train_ppl=144.582 lr=1.000 time_since_begin=11.43m
+epoch=3.498 w/s=4639.78 train_ppl=141.893 lr=1.000 time_since_begin=11.66m
+epoch=3.597 w/s=4677.47 train_ppl=139.379 lr=1.000 time_since_begin=11.90m
+epoch=3.697 w/s=4713.61 train_ppl=136.745 lr=1.000 time_since_begin=12.13m
+epoch=3.796 w/s=4748.46 train_ppl=134.458 lr=1.000 time_since_begin=12.37m
+epoch=3.896 w/s=4782.04 train_ppl=132.343 lr=1.000 time_since_begin=12.60m
+epoch=3.995 w/s=4814.29 train_ppl=130.294 lr=1.000 time_since_begin=12.84m
+epoch=4 ppl-valid=126.950 ppl-test=123.550
+epoch=4.100 w/s=4463.40 train_ppl=128.149 lr=1.000 time_since_begin=14.21m
+epoch=4.199 w/s=4497.37 train_ppl=126.224 lr=1.000 time_since_begin=14.44m
+epoch=4.299 w/s=4530.21 train_ppl=124.479 lr=1.000 time_since_begin=14.68m
+epoch=4.398 w/s=4561.98 train_ppl=122.733 lr=1.000 time_since_begin=14.91m

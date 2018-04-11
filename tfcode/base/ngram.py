@@ -82,3 +82,103 @@ class Ngram(object):
 
     def print(self):
         self.trie.print_all()
+
+    def get_log_probs(self, seq_list):
+        return self.condition(seq_list, 1)
+
+    def eval(self, seq_list):
+        logps = self.get_log_probs(seq_list)
+        nll = -np.mean(logps)
+        words = np.sum([len(x)-1 for x in seq_list])
+        ppl = np.exp(-np.sum(logps) / words)
+
+        return nll, ppl
+
+    def generate(self, seq_list, sample_nums):
+        """
+        generate samples. such as:
+                input: [[1,2,3], [4,5]],  [2, 1]
+                output: [[1,2,3,x,x], [4,5,x]], [logp1, logp2]
+        Args:
+            seq_list: a list of initial sequences
+            sample_nums: list/int, the sample time for each sequences
+
+        Returns:
+            a list of new sequences, the conditional logps
+
+        """
+
+        if isinstance(sample_nums, int):
+            sample_nums = [sample_nums] * len(seq_list)
+
+        y_list = []
+        y_logp = []
+        for x, n in zip(seq_list, sample_nums):
+            y = list(x)
+            logp = 0
+            for _ in range(n):
+                p = self.get_prob(y)
+                w = p.sample()
+                y.append(w)
+                logp += np.log(p[w])
+            y_list.append(y)
+            y_logp.append(logp)
+
+        return y_list, y_logp
+
+    def condition(self, seq_list, begs, ends=None):
+        """
+        compute the conditional probs. For example:
+            inputs: [[1,2,3,4], [4,5]], begs=[2,1], end=[3, 2]
+            outputs: np.log( p([3]|[1,2]), p([5]|[4]) )
+        Args:
+            seq_list: a list of sequence
+            begs: a list / int
+            ends: a list / int / None
+
+        Returns:
+            a list of logprobs
+        """
+        if isinstance(begs, int):
+            begs = [begs] * len(seq_list)
+
+        if ends is None:
+            ends = [len(x) for x in seq_list]
+        elif isinstance(ends, int):
+            ends = [ends] * len(seq_list)
+
+        logps = []
+        for x, b, e in zip(seq_list, begs, ends):
+            s = 0
+            for i in range(b, e):
+                p = self.get_prob(x[0:i])
+                s += np.log(p[x[i]])
+            logps.append(s)
+        return logps
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
