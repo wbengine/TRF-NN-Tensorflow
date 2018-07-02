@@ -506,38 +506,22 @@ class TRF(object):
         if self.exist_model():
             self.restore()
 
-        train_list = self.data.datas[0]
+        dataIter = reader.DataIter(self.config.batch_size, self.data)
         valid_list = self.data.datas[1]
         test_list = self.data.datas[2]
 
         print('[TRF] [Train]...')
-        epoch_contain_step = int(len(train_list) / self.config.batch_size)
 
         time_beginning = time.time()
         model_train_nll = []
         model_train_loss = []
 
         step = self.training_info['trained_step']
-        epoch = step / epoch_contain_step
+        epoch = self.training_info['trained_epoch']
+
         print_next_epoch = int(epoch)
-        while epoch < self.config.max_epoch:
-
-            # update training information
-            self.training_info['trained_step'] = step
-            self.training_info['trained_epoch'] = epoch
-            self.training_info['trained_time'] = (time.time() - time_beginning) / 60
-
-            # shuffle the data
-            if step % epoch_contain_step == 0:
-                np.random.shuffle(train_list)
-                self.save()
-
-            # current data sequences
-            data_seqs = train_list[
-                        step % epoch_contain_step * self.config.batch_size:
-                        (step % epoch_contain_step + 1) * self.config.batch_size
-                        ]
-            # data_seqs = self.extand_data_seqs(data_seqs)
+        save_next_epoch = int(epoch) + 1
+        for data_seqs in dataIter:
 
             # update parameters
             with self.time_recoder.recode('update'):
@@ -553,7 +537,12 @@ class TRF(object):
 
             # update steps
             step += 1
-            epoch = step / epoch_contain_step
+            epoch = dataIter.get_epoch()
+
+            # update training information
+            self.training_info['trained_step'] = step
+            self.training_info['trained_epoch'] = epoch
+            self.training_info['trained_time'] = (time.time() - time_beginning) / 60
 
             if epoch >= print_next_epoch:
                 print_next_epoch = epoch + print_per_epoch
@@ -572,9 +561,9 @@ class TRF(object):
                 info['lr_net'] = '{:.2e}'.format(self.cur_lr_net)
                 info['lr_logz'] = '{:.2e}'.format(self.cur_lr_logz)
                 # info['logz1'] = self.true_logz(self.config.min_len)[0]
-                info['loss'] = np.mean(model_train_loss[-epoch_contain_step:])
+                info['loss'] = np.mean(model_train_loss[-100:])
                 info.update(print_infos)
-                info['train'] = np.mean(model_train_nll[-epoch_contain_step:])
+                info['train'] = np.mean(model_train_nll[-100:])
                 info['valid'] = model_valid_nll
                 info['test'] = model_test_nll
                 log.print_line(info)
@@ -596,7 +585,10 @@ class TRF(object):
             if operation is not None:
                 operation.run(step, epoch)
 
-        self.save()
+            if epoch >= save_next_epoch:
+                save_next_epoch += 1
+                self.save()
+
         # stop the sub-process
         if self.noise_sampler is not None:
             self.noise_sampler.release()

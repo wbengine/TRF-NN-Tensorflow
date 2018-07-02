@@ -18,7 +18,7 @@ def load_baseline():
 
 
 def load_wer(name):
-    with open(os.path.join(name, 'results_nbest_wer.log'), 'rt') as f:
+    with open(name, 'rt') as f:
         for line in f:
             if line.split():
                 labels = line.split()
@@ -57,8 +57,12 @@ def search_file(name):
 
 logs = [
     # 'hrf/hrf_sa100_w4g_t2g_mix2g_save',
-    'hrf_pretrain/trf_sa10_e256_cnn_(1to10)x128_(3x128)x3',
-    'hrf/trf_sa10_e256_cnn_(1to10)x128_(3x128)x3_t2g_mixnet1g',
+    # 'crf2/crf_blstm_cnn_we100_ce30_dropout0.5_sgd',
+    'crf2/crf_blstm_cnn_we100_ce30_dropout0.5_adam',
+    'crf2/crf_blstm_cnn_we100_ce30_dropout0.5_momentum',
+    'crf2/crf_blstm_cnn_we100_ce100_c2wrnn_adam',
+    'crf2/crf_blstm_cnn_we100_ce100_c2wrnn_dropout0.5_adam',
+    # 'hrf/trf_sa10_e256_cnn_(1to10)x128_(3x128)x3_t2g_mixnet1g',
     ]
 baseline_name = ['KN3_000', 'KN5_000']
 colors = ['r', 'g', 'b', 'k', 'c', 'y']
@@ -108,23 +112,19 @@ def plot_tag_wer():
 
     max_epoch = 0
     for log, color in zip(logs, colors):
-        values = load_wer(search_file(log))
+        values = load_wer(os.path.join(log, 'results_tag_err.log'))
         if len(values['epoch']) == 0:
             raise TypeError('empty!')
 
         max_epoch = max(max_epoch, values['epoch'][-1])
 
-        plt.plot(values['epoch'], values['wer'], color + '-', label=log + '-dt')
+        plt.plot(values['epoch'], values['valid'], color + '-', label=log + '-dt')
+        plt.plot(values['epoch'], values['test'], color + '--', label=log + '-et')
         plt.title('wer')
         plt.xlabel('epoch')
 
-    for n, name in enumerate(baseline_name):
-        color = colors[n]
-        x = np.linspace(0, max_epoch, 5)
-
-        plt.plot(x, baseline.GetValue(name, 'WER') * np.ones_like(x), color + '-.s', label=name + '-dt')
-        plt.legend(fontsize='x-small')
-
+    plt.legend()
+    plt.ylim([95, 98])
     return fig
 
 
@@ -210,9 +210,9 @@ def plot_pi():
 
 
 if __name__ == '__main__':
-    plot_pi()
-    print(plot_ll())
-    print(plot_wer())
+    # plot_pi()
+    # print(plot_ll())
+    print(plot_tag_wer())
 
     plt.show()
 

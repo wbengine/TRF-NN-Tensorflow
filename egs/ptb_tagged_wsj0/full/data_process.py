@@ -9,7 +9,7 @@ if wb.is_window():
     ptb_zip_file = '//166.111.64.114/workspace2/spmiData/LDC_tgz/treebank_3_LDC99T42_20161007.zip'
 else:
     ptb_zip_file = '/home/wangbin/NAS_workspace2/spmiData/LDC_tgz/treebank_3_LDC99T42_20161007.zip'
-output_path = '../data'
+output_path = './data'
 
 wb.mkdir(output_path)
 
@@ -56,9 +56,9 @@ def process_file(src_file, fword, ftag, word_vocab=None, tag_vocab=None):
             a = line.split()
             if line[0:5] == '=====' or len(a) == 0:
                 if word_list:
-                    if word_list != ['\'\'']:
-                        fword.write(' '.join(word_list) + '\n')
-                        ftag.write(' '.join(tag_list) + '\n')
+                    #if word_list != ['\'\'']:
+                    fword.write(' '.join(word_list) + '\n')
+                    ftag.write(' '.join(tag_list) + '\n')
                     word_list = []
                     tag_list = []
             else:
@@ -69,9 +69,9 @@ def process_file(src_file, fword, ftag, word_vocab=None, tag_vocab=None):
                         tag_list.append(res[1])
 
         if word_list:
-            if word_list != ['\'\'']:
-                fword.write(' '.join(word_list) + '\n')
-                ftag.write(' '.join(tag_list) + '\n')
+            # if word_list != ['\'\'']:
+            fword.write(' '.join(word_list) + '\n')
+            ftag.write(' '.join(tag_list) + '\n')
 
 
 def process_token(token, word_vocab=None, tag_vocab=None):
@@ -84,14 +84,14 @@ def process_token(token, word_vocab=None, tag_vocab=None):
         w = token[0: i]
         t = token[i+1:].split('|')[0]
 
-        w = w.lower()
+        # w = w.lower()
         t = t.upper()
     except ValueError:
         print('token=', token)
         raise ValueError
 
-    if t == 'CD' and len(re.findall('[a-z]', w)) == 0:  # number
-        w = 'n'
+    # if t == 'CD' and len(re.findall('[a-z]', w)) == 0:  # number
+    #     w = 'n'
     # if t in [',', '.', ':', '?', '$', '#', '\'\'', '``', '(', ')']:
     #     return None
 
@@ -121,10 +121,11 @@ if __name__ == '__main__':
     process_data(train_files + valid_files + test_files, whole_data)
 
     # generate vocabularys
-    v_wod = vocab.Vocab().generate_vocab([whole_data + '.wod'], max_size=10000+1,
+    v_wod = vocab.Vocab().generate_vocab([whole_data + '.wod'], max_size=None,
                                          add_beg_token='<s>',
                                          add_end_token='</s>',
                                          add_unk_token='<unk>')
+    v_wod.create_chars()
     v_wod.write(os.path.join(output_path, 'vocab.wod'))
 
     v_tag = vocab.Vocab().generate_vocab([whole_data + '.tag'],

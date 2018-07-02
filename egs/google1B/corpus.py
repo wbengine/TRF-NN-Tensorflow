@@ -176,43 +176,43 @@ def extract_1billion_vocab():
         write_vocab(word_count, v_all, write_info=('word', 'count'))
     print('all vocab={}', len(v_all))
 
-    for cutoff in range(1, 21):
+    info = dict()
+    for cutoff in range(0, 21):
         v = get_vocab(None, v_all, cutoff)
         print('vocab cutoff={} vocab={}'.format(cutoff, len(v)))
-        write_vocab('data/vocab_cutoff{}.txt'.format(cutoff), v, is_sorted=True, write_info=('id', 'word', 'count'))
+        file = 'data/vocab_cutoff{}.txt'.format(cutoff)
+        write_vocab(file, v, is_sorted=True, write_info=('id', 'word', 'count'))
+        info['vocab_cutoff{}'.format(cutoff)] = '../' + file
 
+    for size in [10000, 20000, 50000]:
+        v = get_vocab(None, v_all, maxnum=size)
+        print('vocab max_size vocab={}'.format(size, len(v)))
+        file = 'data/vocab_{}K.txt'.format(size // 1000)
+        write_vocab(file, v, is_sorted=True, write_info=('id', 'word', 'count'))
+        info['vocab_{}K'.format(size // 1000)] = '../' + file
 
-# # main
-# def main():
-#
-#     for tsize in [10]:
-#         print('tsk = {}'.format(tsize))
-#         tskdir = './data/'
-#         wb.mkdir(tskdir)
-#
-#         write_word_files = raw_word_datas
-#         write_char_files = raw_char_datas
-#
-#         # if not wb.exists(write_train_all):
-#         get_train_text(traindir, write_word_files[0] + '.all', tsize)
-#
-#         # create vocabulary
-#         vocab = get_vocab(write_word_files[0] + '.all', cutoff=3)
-#         vocab.setdefault('<unk>', 0)
-#         vocab.setdefault('<s>', 0)
-#         vocab.setdefault('</s>', 0)
-#         print('vocab size=', len(vocab))
-#
-#         get_text(write_word_files[0] + '.all', write_word_files[0], vocab=vocab, unk='<unk>')
-#         get_text(valid_txt, write_word_files[1], vocab=vocab, unk='<unk>')
-#         get_text(test_txt, write_word_files[2], vocab=vocab, unk='<unk>')
-#
-#         for word_file, char_file in zip(write_word_files, write_char_files):
-#             word_text_to_char_text(word_file, char_file)
-#
-#         for txt_file in write_word_files + write_char_files:
-#             print(txt_file, 'count=', wb.file_count(txt_file))
-
+    return info
 
 if __name__ == '__main__':
-    extract_1billion_vocab()
+    info = dict()
+    # info = extract_1billion_vocab()
+
+    info['train_all'], info['valid'], info['test'] = word_raw_dir()
+
+    wb.mkdir('data')
+    v = vocab.Vocab()
+    for cutoff in [3, 5, 10]:
+        v.generate_vocab(info['train_all'], cutoff=cutoff,
+                         add_beg_token='<s>',
+                         add_end_token='</s>',
+                         add_unk_token='<unk>',
+                         to_lower=True)
+        print('vocab max_size vocab={}'.format(v.get_size()))
+        v.write('data/vocab_cutoff{}.txt'.format(cutoff))
+        info['vocab_cut%d' % cutoff] = '../data/vocab_cutoff{}.txt'.format(cutoff)
+
+    with open('data.info', 'wt') as f:
+        json.dump(info, f, indent=4)
+
+
+

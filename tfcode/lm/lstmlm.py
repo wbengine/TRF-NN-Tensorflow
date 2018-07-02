@@ -4,6 +4,7 @@ import numpy as np
 import time
 import json
 import tqdm
+import os
 
 from base import *
 from lm import loss
@@ -55,17 +56,20 @@ def state_to_list(state):
     for i in range(batch_size):
         for j in range(layers):
             c = state[j].c[i]
-            h = state[j].c[i]
+            h = state[j].h[i]
             state_list[i][j] = (c, h)
     return state_list
 
 
-def state_to_tuple(state_list, batch_size):
+def state_to_tuple(state_list, batch_size=None):
     input_batch = len(state_list)
     layers = len(state_list[0])
     hidden_size = len(state_list[0][0][0])
 
-    assert batch_size >= input_batch
+    if batch_size is None:
+        batch_size = input_batch
+    else:
+        assert batch_size >= input_batch
 
     state = []
     for j in range(layers):
@@ -244,6 +248,9 @@ class Net(object):
     def set_zero_state(self, session):
         """set the lstm state to zeros"""
         self.state = session.run(self._initial_state)
+
+    def get_batch_size(self):
+        return self.config.batch_size
 
     # def get_zero_state(self, session, batch_size):
     #     return session.run(self._initial_state, {self._create_state_batch: batch_size})
@@ -449,7 +456,7 @@ class LM(object):
         #     input_x[i][0: input_n[i]] = np.array(seq_list[i])
 
         x_list, y_list = reader.produce_data_for_rnn(seq_list,
-                                                     self.train_net.config.batch_size,
+                                                     self.train_batch_size(),
                                                      self.config.step_size,
                                                      include_residual_data=include_residual_data)
         for x, y in zip(x_list, y_list):
@@ -524,7 +531,7 @@ class LM(object):
             net = self.valid_net
 
         x_list, y_list = reader.produce_data_for_rnn(raw_data,
-                                                     net.config.batch_size,
+                                                     net.get_batch_size(),
                                                      net.config.step_size,
                                                      include_residual_data=True)
         if reset_state:
@@ -658,9 +665,10 @@ class LM(object):
         final_seq_list = []
         final_logp_list = []
         final_states = []
-        for batch_beg in range(0, initial_seqs.shape[0], net.config.batch_size):
-            seqs = initial_seqs[batch_beg: batch_beg + net.config.batch_size]
-            pnum = net.config.batch_size - seqs.shape[0]
+        batch_size = net.get_batch_size()
+        for batch_beg in range(0, initial_seqs.shape[0], batch_size):
+            seqs = initial_seqs[batch_beg: batch_beg + batch_size]
+            pnum = batch_size - seqs.shape[0]
             seqs = np.pad(seqs, [[0, pnum], [0, 0]], 'edge')
 
             # set the state
@@ -669,8 +677,8 @@ class LM(object):
                     net.set_zero_state(session)
             elif isinstance(initial_state, list):
                 # set the initial state
-                state_list = initial_state[batch_beg: batch_beg + net.config.batch_size]
-                state = state_to_tuple(state_list, net.config.batch_size)
+                state_list = initial_state[batch_beg: batch_beg + batch_size]
+                state = state_to_tuple(state_list, batch_size)
                 net.set_state(state)
 
             # forward, to update states
@@ -681,7 +689,7 @@ class LM(object):
                     net.run_predict(session, seqs[:, 0:-1])
 
             # sample
-            logps = np.zeros((net.config.batch_size, 0))
+            logps = np.zeros((batch_size, 0))
             for i in range(max_sample_nums):
                 # y:      (batch_size, step_size=1)
                 # y_logp: (batch_size, step_size=1)
@@ -749,13 +757,14 @@ class LM(object):
 
         final_list = []
         final_states = []
-        for batch_beg in range(0, input_seqs.shape[0], net.config.batch_size):
-            seqs = input_seqs[batch_beg: batch_beg + net.config.batch_size]
-            local_pos = pos_vec[batch_beg: batch_beg + net.config.batch_size]
-            local_len = len_vec[batch_beg: batch_beg + net.config.batch_size]
+        batch_size = net.get_batch_size()
+        for batch_beg in range(0, input_seqs.shape[0], batch_size):
+            seqs = input_seqs[batch_beg: batch_beg + batch_size]
+            local_pos = pos_vec[batch_beg: batch_beg + batch_size]
+            local_len = len_vec[batch_beg: batch_beg + batch_size]
 
             # pad
-            pnum = net.config.batch_size - seqs.shape[0]
+            pnum = batch_size - seqs.shape[0]
             seqs = np.pad(seqs, [[0, pnum], [0, 0]], 'edge')
             local_pos = np.pad(local_pos, [0, pnum], 'edge')
             local_len = np.pad(local_len, [0, pnum], 'edge')
@@ -766,8 +775,8 @@ class LM(object):
                     net.set_zero_state(session)
             elif isinstance(initial_state, list):
                 # set the initial state
-                state_list = initial_state[batch_beg: batch_beg + net.config.batch_size]
-                state = state_to_tuple(state_list, net.config.batch_size)
+                state_list = initial_state[batch_beg: batch_beg + batch_size]
+                state = state_to_tuple(state_list, batch_size)
                 net.set_state(state)
 
             if context_size is not None and context_size >= 1:
@@ -799,16 +808,24 @@ class LM(object):
 
     def train(self, session, data, write_model,
               write_to_res=None, is_shuffle=True,
-              print_per_epoch=0.1):
+              print_per_epoch=0.1,
+              operation=None):
+
+        if wb.exists(write_model):
+            print('[lstmlm] restore the model in', write_model)
+            self.restore(session, write_model)
 
         if isinstance(data, reader.LargeData):
-            self.train_for_large_data(session, data, write_model, write_to_res, is_shuffle, print_per_epoch)
+            self.train_for_large_data(session, data, write_model, write_to_res, is_shuffle, print_per_epoch,
+                                      operation=operation)
         else:
-            self.train_for_data(session, data, write_model, write_to_res, is_shuffle, print_per_epoch)
+            self.train_for_data(session, data, write_model, write_to_res, is_shuffle, print_per_epoch,
+                                operation=operation)
 
     def train_for_data(self, session, data, write_model,
                        write_to_res=None, is_shuffle=True,
-                       print_per_epoch=0.1):
+                       print_per_epoch=0.1,
+                       operation=None):
         """
         training the lstm LM
         :param session: tf.session()
@@ -880,6 +897,10 @@ class LM(object):
                 print('epoch={:d} ppl-valid={:.3f}'.format(epoch + 1, eval_valid[1]))
                 # summ_bank.write_summary(sv, session, 'ppl_valid', eval_valid[1])
                 # summ_bank.write_summary(sv, session, 'ppl_test', eval_test[1])
+                self.save(session, write_model)
+
+                if operation is not None:
+                    operation.perform(epoch_size * epoch, epoch)
 
                 if self.config.early_stop:
                     if early_stop.verify(eval_valid[1]) is None:
@@ -906,12 +927,29 @@ class LM(object):
 
     def train_for_large_data(self, session, data, write_model,
                              write_to_res=None, is_shuffle=True,
-                             print_per_epoch=0.1):
+                             print_per_epoch=0.1,
+                             operation=None):
 
         print('param_num={:,}'.format(session.run(self.param_num)))
+        print('prepare data, beg_token={} end_token={}'.format(data.beg_token_str, data.end_token_str))
+        if data.get_beg_token() is None:
+            print('data valid: no beg token')
+        else:
+            print('[warning] data contains beg-tokens!!!!')
+            data.rm_beg_tokens_in_datas()
+            data.beg_token_str = None
+            print('result data:')
+            print(data.datas[0][10])
+            print(data.datas[1][10])
+            print(data.datas[2][10])
 
-        if not wb.exists(write_model + '.index'):
+        if wb.exists(write_model + '.index'):
+            print('restore the exist model files:', write_model)
+            self.restore(session, write_model)
+
+        else:
             time_beg = time.time()
+            steps = 0
             train_cost = []
             train_nll = []
             total_word = 0
@@ -940,7 +978,8 @@ class LM(object):
                         train_nll.append(-np.mean(logps))
                         total_word += np.size(x)
 
-                        if print_per_epoch == 0 or (i + 1) % int(epoch_size * print_per_epoch) == 0:
+                        if print_per_epoch == 0 or \
+                            (i + 1) % int(epoch_size * len(data.train_file_list) * print_per_epoch) == 0:
                             time_since_beg = time.time() - time_beg
                             print('epoch={:.3f} w/s={:.2f} cost={:.3f} train_ppl={:.3f} '
                                   'lr={:.3f} time_since_begin={:.2f}m'.format(
@@ -952,20 +991,30 @@ class LM(object):
                                 time_since_beg / 60
                             ))
 
+                            # eval_valid = self.eval(session, data.datas[1], net=self.valid_net)
+                            # eval_test = self.eval(session, data.datas[2], net=self.valid_net)
+                            #
+                            # # write ppl to log
+                            # print('ppl-valid={:.3f} ppl-test={:.3f}'.format(
+                            #     eval_valid[1], eval_test[1]))
+
+                        steps += 1
+
+                    self.save(session, write_model)
                     eval_valid = self.eval(session, data.datas[1], net=self.valid_net)
                     eval_test = self.eval(session, data.datas[2], net=self.valid_net)
 
                     # write ppl to log
                     print('ppl-valid={:.3f} ppl-test={:.3f}'.format(
                         eval_valid[1], eval_test[1]))
-                    self.save(session, write_model)
 
                     data.next_train()
 
+                if operation is not None:
+                    operation.perform(steps, epoch)
+
             self.save(session, write_model)
-        else:
-            print('restore the exist model files:', write_model)
-            self.restore(session, write_model)
+
 
         ##################################################
         # evaulation
@@ -1024,10 +1073,11 @@ def load(path, device='/gpu:0'):
 
 
 class DistributedNet(object):
-    def __init__(self, config, is_training, device_list, name='lstm_net', reuse=None):
+    def __init__(self, config, data, is_training, device_list, name='lstm_net', reuse=None):
 
         self.distributed_num = len(device_list)
         self.config = config
+        self.state = None  # save the current states
         max_grad_norm = config.max_grad_norm
         config.max_grad_norm = None
 
@@ -1035,11 +1085,13 @@ class DistributedNet(object):
             self.net_list = []
             for i, dev in enumerate(device_list):
                 with tf.device(dev), tf.name_scope('%s_%d' % (name, i)):
-                    net = Net(config, is_training=is_training, name=name, reuse=reuse if i == 0 else True)
+                    net = Net(config, data, is_training=is_training, name=name, reuse=reuse if i == 0 else True)
                     self.net_list.append(net)
 
             # total cost, avraged over batch_size
             self.cost = tf.add_n([net.cost for net in self.net_list]) / len(self.net_list)
+            self.logps = tf.concat([net.logps for net in self.net_list], axis=0)
+
             if is_training:
                 tvars = self.net_list[0].variables
                 # average all the gradients
@@ -1078,7 +1130,10 @@ class DistributedNet(object):
         for net in self.net_list:
             net.set_zero_state(session)
 
-    def run(self, session, x, y, ops=None):
+    def get_batch_size(self):
+        return self.config.batch_size * self.distributed_num
+
+    def run(self, session, x, y, ops=None, length=None):
         """
 
         Args:
@@ -1086,6 +1141,7 @@ class DistributedNet(object):
             x: the inputs
             y: the targets
             ops: list of operations, if None, then compute the cost and perform train_op
+            length: sequence length
 
         Returns:
 
@@ -1096,45 +1152,52 @@ class DistributedNet(object):
                             '* model_batch_size[%d]' %
                             (len(x), self.distributed_num, self.config.batch_size))
 
+        if length is None:
+            length = [None] * self.distributed_num
+
         feed_dict = dict()
         # feed for each net
-        for net, net_x, net_y, in zip(self.net_list,
-                                      np.split(x, self.distributed_num),
-                                      np.split(y, self.distributed_num)):
+        for net, net_x, net_y, net_l in zip(self.net_list,
+                                            np.split(x, self.distributed_num),
+                                            np.split(y, self.distributed_num),
+                                            np.split(np.array(length), self.distributed_num)):
             if net.state is None:
                 net.set_zero_state(session)
             # feed inputs and targets
             feed_dict[net._inputs] = net_x
             feed_dict[net._targets] = net_y
+            if net_l[0] is not None:
+                feed_dict[net._lengths] = net_l
             # feed states
             feed_dict.update(net.feed_state(net.state))
 
         # outputs
         if ops is None:
-            opeartions = {'cost': self.cost, 'train': self._train_op}
+            ops = [self.cost, self._train_op]
         else:
-            if isinstance(ops, list):
-                opeartions = dict([('op_%d' % i, ops[i]) for i in range(len(ops))])
-            else:
-                opeartions = {'op_0': ops}
+            ops = list(ops)  # copy the list
+        ops.append([net._final_state for net in self.net_list])  # add final state
+
+        res = session.run(ops, feed_dict)
+
+        # the final_state and summary op are saved in member variables
         for i, net in enumerate(self.net_list):
-            opeartions['final_state_%d' % i] = net._final_state
+            net.state = res[-1][i]
+        res = res[0: -1]
 
-        # run
-        res = session.run(opeartions, feed_dict)
+        # compute the state
+        final_state_list = []
+        for net in self.net_list:
+            final_state_list += state_to_list(net.state)
+        self.state = state_to_tuple(final_state_list)
 
-        # process the results
-        for i, net in enumerate(self.net_list):
-            net.state = res['final_state_%d' % i]
-            del res['final_state_%d' % i]
-        if 'train' in res:
-            del res['train']
+        # remove the train-op
+        if self._train_op in ops:
+            del res[ops.index(self._train_op)]
 
-        # return
-        res = [x[1] for x in res.items()]
         if len(res) == 1:
             return res[0]
-        return res
+        return tuple(res)
 
     def run_predict(self, session, x, ops=None):
         if len(x) != self.distributed_num * self.config.batch_size:
@@ -1179,71 +1242,133 @@ class DistributedNet(object):
         return res
 
 
-class FastLM(object):
-    def __init__(self, config, eval_config=None, device_list=['/gpu:0'], name='lstm-lm'):
+class FastLM(LM):
+    def __init__(self, config, data=None, eval_config=None, device_list=['/gpu:0'], name='lstm-lm', default_path=None):
+        self.name = name
+        self.data = data
+        self.default_path = default_path
+        self.config = config
+
         with tf.name_scope('Train'):
-            self.train_net = DistributedNet(config, is_training=True,
+            self.train_net = DistributedNet(config, data, is_training=True,
                                             device_list=device_list, name=name, reuse=None)
         with tf.name_scope('Valid'):
-            self.valid_net = DistributedNet(config, is_training=False,
+            self.valid_net = DistributedNet(config, data, is_training=False,
                                             device_list=device_list, name=name, reuse=True)
         with tf.name_scope('Eval'):
             if eval_config is None:
                 eval_config = deepcopy(config)
                 eval_config.batch_size = 1  # set batch_size to 1
-            self.eval_net = DistributedNet(eval_config, is_training=False,
+            self.eval_net = DistributedNet(eval_config, data, is_training=False,
                                            device_list=device_list[0:1], name=name, reuse=True)
 
+        self.param_num = tf.add_n([tf.size(v) for v in tf.trainable_variables()])
         self.saver = tf.train.Saver()
 
-    def set_lr(self, session, lr):
-        """set the learning rate"""
-        self.train_net.set_lr(session, lr)
+    # def set_lr(self, session, lr):
+    #     """set the learning rate"""
+    #     self.train_net.set_lr(session, lr)
 
-    def update(self, session, x, y):
-        cost = self.train_net.run(session, x, y)
-        return cost
+    # def update(self, session, x, y):
+    #     cost, logps = self.train_net.run(session, x, y,
+    #                                      [self.train_net.cost, self.train_net.logps, self.train_net._train_op])
+    #     return cost, logps
 
-    def save(self, session, path):
-        self.saver.save(session, path)
+    # def save(self, session, path):
+    #     self.saver.save(session, path)
 
-    def eval(self, session, raw_data, net=None, reset_state=True):
-        if net is None:
-            net = self.eval_net
+    # def eval(self, session, raw_data, net=None, reset_state=True):
+    #     if net is None:
+    #         net = self.eval_net
+    #
+    #     x_list, y_list = reader.produce_data_for_rnn(raw_data,
+    #                                                  net.config.batch_size * net.distributed_num,
+    #                                                  net.config.step_size,
+    #                                                  include_residual_data=True)
+    #     if reset_state:
+    #         net.set_zero_state(session)
+    #     total_cost = 0
+    #     total_word = 0
+    #     for x, y in zip(x_list, y_list):
+    #         cost = net.run(session, x, y, [net.cost])
+    #         total_cost += cost * net.config.batch_size * net.distributed_num  # as cost is averaged over batch
+    #         total_word += np.size(x)
+    #
+    #     seq_num = len(raw_data)
+    #     nll = total_cost / seq_num
+    #     ppl = np.exp(total_cost / total_word)
+    #     return nll, ppl
 
-        x_list, y_list = reader.produce_data_for_rnn(raw_data,
-                                                     net.config.batch_size * net.distributed_num,
-                                                     net.config.step_size,
-                                                     include_residual_data=True)
-        if reset_state:
-            net.set_zero_state(session)
-        total_cost = 0
-        total_word = 0
-        for x, y in zip(x_list, y_list):
-            cost = net.run(session, x, y)
-            total_cost += cost * net.config.batch_size * net.distributed_num  # as cost is averaged over batch
-            total_word += np.size(x)
+    # def rescore(self, session, seq_list, reset_state_for_sentence=False, pad_end_token_to_head=True):
+    #     net = self.eval_net
+    #     net.set_zero_state(session)
+    #
+    #     score = np.zeros(len(seq_list))
+    #     for i, seq in tqdm.tqdm(enumerate(seq_list), total=len(seq_list)):
+    #         score[i] = self.eval(session, [[seq[-1]] + seq], net=net,
+    #                              reset_state=reset_state_for_sentence)[0]
+    #     return score
 
-        seq_num = len(raw_data)
-        nll = total_cost / seq_num
-        ppl = np.exp(total_cost / total_word)
-        return nll, ppl
-
-    def rescore(self, session, seq_list, reset_state_for_sentence=False):
-        net = self.eval_net
-        net.set_zero_state(session)
-
-        score = np.zeros(len(seq_list))
-        for i, seq in tqdm.tqdm(enumerate(seq_list), total=len(seq_list)):
-            score[i] = self.eval(session, [[seq[-1]] + seq], net=net,
-                                 reset_state=reset_state_for_sentence)[0]
-        return score
-
-    def global_step(self):
-        return self.train_net.global_step
+    # def global_step(self):
+    #     return self.train_net.global_step
 
     def train_batch_size(self):
         return self.train_net.config.batch_size * self.train_net.distributed_num
+
+
+class DefaultOps(wb.Operation):
+    def __init__(self, session, m, nbest_or_nbest_file_tuple, logdir, scale_vec=np.linspace(0.1, 1.0, 10)):
+        super().__init__()
+        self.m = m
+        self.scale_vec = scale_vec
+        self.session = session
+        self.logdir = logdir
+
+        if isinstance(nbest_or_nbest_file_tuple, (tuple, list)):
+            print('[%s.%s] input the nbest files.' % (__name__, self.__class__.__name__))
+            self.nbest_cmp = reader.NBest(*nbest_or_nbest_file_tuple)
+        else:
+            print('[%s.%s] input nbest computer.' % (__name__, self.__class__.__name__))
+            self.nbest_cmp = nbest_or_nbest_file_tuple
+
+        self.wer_next_epoch = 0
+        self.wer_per_epoch = 1.0
+        self.write_models = wb.mkdir(os.path.join(self.logdir, 'wer_results'))
+        self.write_log = os.path.join(self.logdir, 'wer_per_epoch.log')
+
+    def perform(self, step, epoch):
+        self.wer_next_epoch = int(epoch + self.wer_per_epoch)
+
+        # resocring
+        time_beg = time.time()
+        self.nbest_cmp.lmscore = self.m.rescore(self.session,
+                                                self.nbest_cmp.get_nbest_list(self.m.data),
+                                                reset_state_for_sentence=True)
+        rescore_time = time.time() - time_beg
+
+        # compute wer
+        time_beg = time.time()
+        wer = self.nbest_cmp.wer(lmscale=self.scale_vec)
+        wer_time = time.time() - time_beg
+
+        if self.write_models is not None:
+            wb.WriteScore(self.write_models + '/epoch%.2f' % epoch + '.lmscore', self.nbest_cmp.lmscore)
+
+        print('epoch={:.2f} test_wer={:.2f} lmscale={} '
+              'rescore_time={:.2f}, wer_time={:.2f}'.format(
+            epoch, wer, self.nbest_cmp.lmscale,
+            rescore_time / 60, wer_time / 60))
+
+        res = wb.FRes(self.write_log)
+        res_name = 'epoch%.2f' % epoch
+        res.Add(res_name, ['lm-scale'], [self.nbest_cmp.lmscale])
+        res.Add(res_name, ['wer'], [wer])
+
+    def run(self, step, epoch):
+        super().run(step, epoch)
+
+        if epoch >= self.wer_next_epoch:
+            self.perform(step, epoch)
 
 
 def compare_softmax(_):

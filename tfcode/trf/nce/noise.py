@@ -63,7 +63,7 @@ def create_noise_sampler(name, config, data, device='/gpu:0', logdir=None):
 
 
 class NoiseSampler(object):
-    def __init__(self, config, data, name, is_parallel=False):
+    def __init__(self, config, data, name, is_parallel=False, parallel_num=4):
         self.config = config
         self.data = data
         self.name = name
@@ -72,12 +72,14 @@ class NoiseSampler(object):
         print('[NoiseSampler] Type={} is_parallel={}'.format(name, is_parallel))
 
         if self.is_parallel:
-            self.sample_queue = Queue(maxsize=10)
+            self.sample_queue = Queue(maxsize=100)
             self.sample_state = Value('i', 1)  # (i is on , 0 is off)
-            self.sample_process = Process(target=self.sub_process,
-                                          args=(self.sample_state,
-                                                self.sample_queue,
-                                                self.config.pack_size))
+            self.sample_process = [None] * parallel_num
+            for i in range(parallel_num):
+                self.sample_process[i] = Process(target=self.sub_process,
+                                                 args=(self.sample_state,
+                                                       self.sample_queue,
+                                                       self.config.pack_size))
 
     def sub_process(self, state, sample_queue, num):
         while state.value == 1:
@@ -97,13 +99,15 @@ class NoiseSampler(object):
         # prepare for the sampling
         if self.is_parallel:
             print('[{}.{}] start sub process.'.format(__name__, self.__class__.__name__))
-            self.sample_process.start()
+            for p in self.sample_process:
+                p.start()
 
     def release(self):
         # release the thread
         if self.is_parallel:
             self.sample_state.value = 0
-            self.sample_process.join()
+            for p in self.sample_process:
+                p.join()
 
     def noise_generate(self, num):
         pass
@@ -154,9 +158,12 @@ class NoiseSamplerUnigram(NoiseSampler):
 
 
 class NoiseSamplerNgram(NoiseSampler):
-    def __init__(self, config, data, order, name=None, is_parallel=True):
-        self.ngram = ngram.Ngram(order, data.get_vocab_size())
-        self.ngram.create_from_corpus(data.datas[0])
+    def __init__(self, config, data, order, name=None, is_parallel=True, input_ngram=None):
+        if input_ngram is None:
+            self.ngram = ngram.Ngram(order, data.get_vocab_size())
+            self.ngram.create_from_corpus(data.datas[0])
+        else:
+            self.ngram = input_ngram
 
         super().__init__(config, data,
                          name='%dgram' % order if name is None else name,

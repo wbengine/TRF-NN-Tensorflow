@@ -1,4 +1,6 @@
 import os
+import tensorflow as tf
+import json
 
 from base import *
 from trf.common import feat2 as feat
@@ -27,6 +29,19 @@ class TagConfig(wb.Config):
     def __str__(self):
         max_order = feat.Feats(self.feat_dict).get_order()
         return 't{}g'.format(max_order)
+
+
+class TagBigramConfig(wb.Config):
+    def __init__(self, data):
+        """
+        Args:
+            data: seq.Data()
+        """
+        self.L2_reg = 0
+        self.tag_size = data.get_tag_size()
+
+    def __str__(self):
+        return 'tagbigram'
 
 
 class TagPhi(object):
@@ -204,14 +219,110 @@ class TagPhi(object):
         return self.trans_matrix, self.trans_matrix_tail
 
 
+class TagBigram(object):
+    def __init__(self, config, data_seq_list, opt_method):
+        self.config = config
+        self.data_seq_list = data_seq_list
+        self.opt_method = opt_method
 
+        # tag features
+        self.edge_mat = np.zeros([self.config.tag_size, self.config.tag_size])
 
+        # update
+        self.update_op = wb.ArrayUpdate(self.edge_mat, {'name': opt_method, 'max_norm': 10})
 
+    def initialize(self):
+        pass
 
+    def get_param_num(self):
+        return np.size(self.edge_mat)
 
+    def get_order(self):
+        return 2
 
+    def get_value(self, seq_list, depend_on=None):
+        values = []
 
+        if depend_on is None:
+            for t in seq.get_h(seq_list):
+                a = self.edge_mat[t[0:-1], t[1:]]
+                values.append(np.sum(a))
+        else:
+            for t in seq.get_h(seq_list):
+                n = depend_on[-1]  # position
+                v = 0
+                if n-1 >= 0:
+                    v += self.edge_mat[t[n-1], t[n]]
+                if n+1 <= len(t) - 1:
+                    v += self.edge_mat[t[n], t[n+1]]
+                values.append(v)
+        return np.array(values)
 
+    def set_params(self, value=None):
+        if value is None:
+            self.edge_mat = np.random.uniform(-0.1, 0.1, size=self.edge_mat.shape)
+        else:
+            self.edge_mat = value
+
+    def get_propose_logps(self, seq_list, tag_pos):
+        if isinstance(tag_pos, int):
+            tag_pos = [tag_pos] * len(seq_list)
+
+        logps = []
+        for s, pos in zip(seq_list, tag_pos):
+            temp_seqs = seq.seq_list_enumerate_tag([s], self.config.tag_size, pos)
+            m = self.get_value(temp_seqs, depend_on=(1, pos))
+            logps.append(m)
+
+        return np.array(logps)
+
+    def get_exp(self, data_list, data_scalar, logps_list=None):
+        exp_s = np.zeros_like(self.edge_mat)
+
+        if logps_list is None:
+            for scalar, seq in zip(data_scalar, data_list):
+                t = seq.x[1]
+                for i in range(len(t)-1):
+                    exp_s[t[i], t[i+1]] += scalar
+        else:
+            for scalar, logps in zip(data_scalar, logps_list):
+
+                order = logab_int(self.config.tag_size, logps.shape[1])
+                assert order == self.get_order()
+
+                logps_sum = logsumexp(logps, axis=0)  # sum all position
+                exp_s += scalar * logps_sum.reshape([self.config.tag_size, self.config.tag_size])
+
+        return exp_s
+
+    def update(self, data_list, data_scalars, sample_list, sample_scalars, learning_rate=1.0,
+               data_fp_logps_list=None,
+               sample_fp_logps_list=None):
+        exp_d = self.get_exp(data_list, data_scalars, data_fp_logps_list)
+        exp_s = self.get_exp(sample_list, sample_scalars, sample_fp_logps_list)
+        g = exp_d - exp_s - self.config.L2_reg * self.edge_mat
+
+        d = self.update_op.update(-g, learning_rate)
+        self.edge_mat += d
+
+    def save(self, fname):
+        with open(fname + '.tag.mat', 'wt') as f:
+            json.dump({'edge': self.edge_mat.tolist()}, f, indent=4)
+
+    def restore(self, fname):
+        with open(fname + '.tag.mat', 'rt') as f:
+            a = json.load(f)
+            self.edge_mat = np.array(a['edge'])
+
+        # update op
+        self.update_op = wb.ArrayUpdate(self.edge_mat, {'name': self.opt_method})
+
+    def get_trans_matrix(self):
+        """compute the trans-matrix for forward-backward algorithms,
+            return the log probs
+        """
+        # return the log-probs
+        return self.edge_mat, self.edge_mat
 
 
 

@@ -56,9 +56,10 @@ def search_file(name):
 
 
 logs = [
-    # 'hrf/hrf_sa100_w4g_t2g_mix2g_save',
-    # 'hrf/hrf_app_sa100_e200_blstm_200x1_pred_t2g_mixnet1g_LoadCRF',
-    'hrf/hrf_sa100_priorlm_t2g_mixnet1g_LoadCRF',
+    'train1000/crf/crf_blstm_cnn_we100_ce100_c2wrnn_dropout0.5_adam',
+    'train1000/trf_noise1.0_blstm_cnn_we200_ce100_c2wrnn',
+    'train5000/crf/crf_blstm_cnn_we100_ce100_c2wrnn_dropout0.5_adam',
+    'train5000/trf_noise1.0_blstm_cnn_we200_ce100_c2wrnn'
     ]
 baseline_name = ['KN5_00000']
 colors = ['r', 'g', 'b', 'k', 'c', 'y']
@@ -106,17 +107,35 @@ def plot_wer():
 def plot_tag_wer():
     fig = plt.figure()
 
+    def get_best_wer(epochs, valid, test):
+        i = np.argmax(valid)
+        return epochs[i], 100 - test[i]
+
     max_epoch = 0
-    for log, color in zip(logs, colors):
+    crf_best_epoch = 0
+    crf_best_wer = 0
+    trf_best_epoch = 0
+    trf_best_wer = 0
+    for log_i, (log, color) in enumerate(zip(logs, colors)):
         values = load_wer(os.path.join(log, 'results_tag_err.log'))
         if len(values['epoch']) == 0:
             raise TypeError('empty!')
 
         max_epoch = max(max_epoch, values['epoch'][-1])
 
-        plt.plot(values['epoch'], values['F'], color + '-', label=log + '-dt')
-        plt.title('wer')
+        # plt.plot(values['epoch'], values['valid'], color + '-', label=log + '-dt')
+        plt.plot(values['epoch'], values['test'], color + '-', label=log + '-et')
         plt.xlabel('epoch')
+
+        if log_i % 2 == 0:
+            crf_best_epoch, crf_best_wer = get_best_wer(values['epoch'], values['valid'], values['test'])
+            print('[crf] precision=%.2f error=%.2f, epoch=%d' % (100-crf_best_wer, crf_best_wer, crf_best_epoch))
+        else:
+            trf_best_epoch, trf_best_wer = get_best_wer(values['epoch'], values['valid'], values['test'])
+            print('[TRF] precision=%.2f error=%.2f, epoch=%d' % (100-trf_best_wer, trf_best_wer, trf_best_wer))
+            print('outperform rate = {:.2f}\%'.format(100 * (crf_best_wer - trf_best_wer) / crf_best_wer))
+
+    plt.legend()
 
     return fig
 
@@ -206,7 +225,7 @@ if __name__ == '__main__':
     # plot_pi()
     # print(plot_ll())
     plot_tag_wer()
-    print(plot_wer())
+    # print(plot_wer())
 
     plt.show()
 

@@ -26,14 +26,14 @@ class MixNetConfig(mixnet.Config):
         super().__init__(self.word_vocab, self.tag_size ** self.order)
 
     def __str__(self):
-        return 'mixnet{}g'.format(self.order)
+        return super().__str__()
 
 
-def create(mix_config, data_seq_list, opt_method, device='/gpu:0'):
+def create(mix_config, data, opt_method, device='/gpu:0'):
     if isinstance(mix_config, MixFeatConfig):
-        return MixFeatPhi(mix_config, data_seq_list, opt_method)
+        return MixFeatPhi(mix_config, data.datas[0], opt_method)
     elif isinstance(mix_config, MixNetConfig):
-        return MixNetPhi(mix_config, data_seq_list, opt_method, device)
+        return MixNetPhi(mix_config,  data.vocabs[0].word_to_chars, device)
     else:
         raise TypeError('[{}] create: not defined the config type={}'.format(__name__, type(mix_config)))
 
@@ -240,11 +240,14 @@ class MixFeatPhi(MixBase):
 
 
 class MixNetPhi(MixBase):
-    def __init__(self, config, data_seq_list, opt_method, device='/gpu:0'):
+    def __init__(self, config, word_to_chrs, device='/gpu:0'):
         self.config = config
 
-        self.net = mixnet.Net(config, is_training=True, device=device, name='mixnet')
+        self.net = mixnet.Net(config, is_training=True, device=device, name='mixnet',
+                              word_to_chars=word_to_chrs)
         self.saver = tf.train.Saver(self.net.vars)
+
+        self.time_recoder = wb.clock()
 
     @property
     def session(self):
@@ -281,18 +284,20 @@ class MixNetPhi(MixBase):
 
     def get_gradient_output(self, seq_list, seq_scalar, logps_list=None):
         if logps_list is not None:
-            logps_list = alg.marginal_logps_list(logps_list, self.config.tag_size, self.get_order())
-            logps_array = alg.logps_list_package(logps_list)
-            probs_array = np.exp(logps_array)
+            with self.time_recoder.recode('mixphi_grad_out_logps'):
+                logps_list = alg.marginal_logps_list(logps_list, self.config.tag_size, self.get_order())
+                logps_array = alg.logps_list_package(logps_list)
+                probs_array = np.exp(logps_array)
         else:
-            # compute one-hot
-            max_len = np.max([len(s) for s in seq_list])
-            dim = self.config.tag_size ** self.get_order()
-            probs_array = np.zeros([len(seq_list), max_len, dim])
-            for k, s in enumerate(seq_list):
-                for i in range(0, len(s)-self.get_order()+1):
-                    j = sp.map_list(s.x[1][i: i+self.get_order()], self.config.tag_size)
-                    probs_array[k, i, j] = 1
+            with self.time_recoder.recode('mixphi_grad_out_onehot'):
+                # compute one-hot
+                max_len = np.max([len(s) for s in seq_list])
+                dim = self.config.tag_size ** self.get_order()
+                probs_array = np.zeros([len(seq_list), max_len, dim])
+                for k, s in enumerate(seq_list):
+                    for i in range(0, len(s)-self.get_order()+1):
+                        j = sp.map_list(s.x[1][i: i+self.get_order()], self.config.tag_size)
+                        probs_array[k, i, j] = 1
 
         probs_array = np.reshape(seq_scalar, [-1, 1, 1]) * probs_array
         return probs_array
@@ -301,8 +306,9 @@ class MixNetPhi(MixBase):
                data_fp_logps_list=None,
                sample_fp_logps_list=None):
 
-        data_grads = self.get_gradient_output(data_list, data_scalars, data_fp_logps_list)
-        samp_grads = - self.get_gradient_output(sample_list, sample_scalars, sample_fp_logps_list)
+        with self.time_recoder.recode('mixphi_grad'):
+            data_grads = self.get_gradient_output(data_list, data_scalars, data_fp_logps_list)
+            samp_grads = - self.get_gradient_output(sample_list, sample_scalars, sample_fp_logps_list)
 
         inputs, _, lengths = seq_list_package(data_list + sample_list)
         max_len = np.max(lengths)
@@ -311,18 +317,22 @@ class MixNetPhi(MixBase):
         samp_grads = np.pad(samp_grads, [[0, 0], [0, max_len-samp_grads.shape[1]], [0, 0]], mode='constant')
         grads = np.concatenate([data_grads, samp_grads], axis=0)
 
-        self.net.run_update(self.session, inputs, lengths, grads, learning_rate=learning_rate)
+        with self.time_recoder.recode('mixphi_update'):
+            self.net.run_update(self.session, inputs, lengths, grads, learning_rate=learning_rate)
 
-    def get_emission_vectors(self, order, x_list):
+    def get_emission_vectors(self, order, x_list, batch_size=100):
         if order-1 != self.get_order():
             raise TypeError('[{}.{}] get_emission_vectors, the needed order-1={} != the model order={}'.format(
                 __name__, self.__class__.__name__, order-1, self.get_order()
             ))
 
-        inputs, lengths = reader.produce_data_to_array(x_list)
-        outputs = self.net.run_outputs(self.session, inputs, lengths)
-        logps_list = alg.logps_list_unfold(outputs,
-                                           lengths - self.get_order() + 1)
+        logps_list = []
+
+        for i in range(0, len(x_list), batch_size):
+            inputs, lengths = reader.produce_data_to_array(x_list[i: i+batch_size])
+            outputs = self.net.run_outputs(self.session, inputs, lengths)
+            logps_list += alg.logps_list_unfold(outputs,
+                                                lengths - self.get_order() + 1)
         return logps_list
 
 

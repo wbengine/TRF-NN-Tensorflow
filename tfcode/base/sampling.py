@@ -189,7 +189,7 @@ class FastProb(object):
                 left = i + 1
             else:
                 return i
-        return left
+        return min(left, self.size-1)
 
 
 def map_list(keys, max_value):

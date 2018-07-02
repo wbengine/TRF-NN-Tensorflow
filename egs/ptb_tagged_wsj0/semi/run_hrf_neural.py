@@ -5,7 +5,8 @@ from tqdm import tqdm
 
 from base import *
 from hrf import *
-from hrf import trfx as trf
+from hrf import trfx_semi as trf
+from hrf import crf
 from eval import get_config_rnn, get_config_cnn
 
 
@@ -21,8 +22,8 @@ def get_config(data):
 
     # config.sample_batch_size = 300
 
-    config.lr_tag = lr.LearningRateTime(1, 1, tc=10)
-    config.lr_mix = lr.LearningRateTime(1, 1, tc=1e4)
+    config.lr_tag = lr.LearningRateTime(tc=1e-3)
+    config.lr_mix = lr.LearningRateTime(tc=1e-3)
     config.lr_word = lr.LearningRateTime(1, 1, tc=1e4)
     config.lr_logz = lr.LearningRateTime(1, 0.2)
     config.opt_tag = 'adam'
@@ -38,6 +39,8 @@ def get_config(data):
     return config
 
 
+train_num = 100
+
 def main():
     with open('data.info') as f:
         data_info = json.load(f)
@@ -47,10 +50,17 @@ def main():
                     valid_list=data_info['valid'],
                     test_list=data_info['test'],
                     )
+
+    data_full = seq.Data(vocab_files=data_info['vocab'],
+                         train_list=data_info['train%d' % train_num],
+                         valid_list=data_info['valid'],
+                         test_list=data_info['test']
+                         )
+
     nbest_files = data_info['nbest']
 
     config = get_config(data)
-    logdir = wb.mklogdir('hrf/' + str(config), is_recreate=True)
+    logdir = wb.mklogdir('train%d/' % train_num + str(config), is_recreate=True)
     config.print()
 
     # config.word_config.load_embedding_path = os.path.join(logdir, 'word_emb.txt')
@@ -63,11 +73,13 @@ def main():
     data.write_file(data.datas[1], os.path.join(logdir, 'valid.id'))
     data.write_file(data.datas[2], os.path.join(logdir, 'test.id'))
 
-    m = trf.TRF(config, data, logdir, device='/gpu:1')
+    m = trf.TRF(config, data, data_full, logdir, device='/gpu:1')
 
-    ops = trf.DefaultOps(m, nbest_files, data.datas[-1])
+    # ops = trf.DefaultOps(m, nbest_files, data.datas[-1])
+    # ops.nbest_cmp.write_nbest_list(os.path.join(logdir, 'nbest.id'), data)
+    ops = crf.DefaultOps(m, data.datas[-1])
     ops.perform_next_epoch = 0
-    ops.nbest_cmp.write_nbest_list(os.path.join(logdir, 'nbest.id'), data)
+    # ops.perform_per_epoch = 0.1
 
     sv = tf.train.Supervisor(logdir=os.path.join(logdir, 'logs'))
     sv.summary_writer.add_graph(tf.get_default_graph())  # write the graph to logs

@@ -61,10 +61,10 @@ logs = [
     # 'trf_sa/trf_sa10_featg4_c200_L2reg1.00e-05',
     # 'trf_is/trf_IS_featg4_c200_L2reg1.00e-05_noise2gram',  # donot normalize the scalar
     # 'trf_is/trf_IS_featg4_c200_L2reg1.00e-05_noise2gram_save',  # donot normalize the scalar
-    # 'trf_sa/trf_IS_featg4_c200_L2reg1.00e-05_noise2gram',  # normalize the scalar
-    'trf_is/trf_IS_e256_cnn_(1to10)x128_(3x128)x3',
+    'trf_sa/trf_IS_featg4_c200_L2reg1.00e-05_noise2gram',  # normalize the scalar
+    # 'trf_is/trf_IS_e256_cnn_(1to10)x128_(3x128)x3',
     # 'trf_sa/trf_sa100_featg4_c200_L2reg1.00e-05',
-    'trf_is/trf_IS_featg4_c200_L2reg1.00e-05',
+    # 'trf_is/trf_IS_featg4_c200_L2reg1.00e-05',
     # 'trf_nce/trf_nce10_e200_blstm_200x2_noise2gram_logz_linear'
     ]
 baseline_name = ['KN5_000', 'lstm_e200_h200x2']
@@ -194,7 +194,7 @@ def plot_pi():
 
 
 if __name__ == '__main__':
-    plot_pi()
+    # plot_pi()
     print(plot_ll())
     print(plot_wer())
 

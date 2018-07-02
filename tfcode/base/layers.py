@@ -1,6 +1,8 @@
 import tensorflow as tf
 import numpy as np
 
+from base import reader
+
 
 def tf_random_choice(n, p, dtype=tf.int32):
     """
@@ -61,7 +63,7 @@ def tf_random_int(shape, n):
     """
     return tf.minimum(
         tf.cast(tf.random_uniform(shape=shape) * n, tf.int32),
-        n-1)
+        n - 1)
 
 
 def tf_metropolis_sampling(n, probs, state, multiple_trial=1):
@@ -71,7 +73,7 @@ def tf_metropolis_sampling(n, probs, state, multiple_trial=1):
     sample_range = tf.range(sample_num)
 
     y_multiple = tf.random_uniform(shape=[sample_num, multiple_trial])
-    y_multiple = tf.minimum(tf.cast(y_multiple * n, dtype=tf.int32), n-1)
+    y_multiple = tf.minimum(tf.cast(y_multiple * n, dtype=tf.int32), n - 1)
     # [0, 0, 0, 1, 1, 1, 2, 2, 2, ...]
     range_idx = tf.reshape(tf.tile(tf.expand_dims(sample_range, axis=-1), [1, multiple_trial]), [-1])
     # [[0, y00], [0, y01], [0, y02], [1, y10], [1, y11], [1, y12],...]
@@ -139,9 +141,10 @@ class Softmax(object):
             else:
                 softmax_b = weight_b  # the weight_b can be constant, such as 0
 
-            outputs = tf.reshape(inputs, [-1, input_dim])                       # [batch_size * step_size, input_dim]
-            logits = tf.matmul(outputs, softmax_w) + softmax_b                  # [batch_size * step_size, vocab_size]
-            logits = tf.reshape(logits, tf.concat([input_shape, [vocab_size]], axis=0))   # (batch_size, step_size, vocab_size)
+            outputs = tf.reshape(inputs, [-1, input_dim])  # [batch_size * step_size, input_dim]
+            logits = tf.matmul(outputs, softmax_w) + softmax_b  # [batch_size * step_size, vocab_size]
+            logits = tf.reshape(logits,
+                                tf.concat([input_shape, [vocab_size]], axis=0))  # (batch_size, step_size, vocab_size)
 
             if labels is not None:
                 loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=labels)
@@ -152,8 +155,8 @@ class Softmax(object):
                 self._logps = tf.no_op()
 
             probs = tf.nn.softmax(tf.reshape(logits, [-1, vocab_size]))  # (sample_num, vocab_size)
-            draw = tf_random_fast_choice(probs, stride)     # (sample_num)
-            draw = tf.reshape(draw, input_shape)            # (batch_size, step_size)
+            draw = tf_random_fast_choice(probs, stride)  # (sample_num)
+            draw = tf.reshape(draw, input_shape)  # (batch_size, step_size)
             draw_nlogp = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=draw)
             self._draw = [draw, -draw_nlogp]
 
@@ -217,22 +220,26 @@ class ShortlistSoftmax(object):
         with tf.name_scope(name, 'ShortlistSoftmax'):
             softmax_w = tf.get_variable('%s/w' % name, [input_dim, vocab_size], dtype=tf.float32)
             softmax_b = tf.get_variable('%s/b' % name, [vocab_size], dtype=tf.float32)
-            inputs = tf.reshape(inputs, [-1, input_dim], name='list_inputs')  # to shape [batch_size * step_size, input_dim]
+            inputs = tf.reshape(inputs, [-1, input_dim],
+                                name='list_inputs')  # to shape [batch_size * step_size, input_dim]
             logits = tf.matmul(inputs, softmax_w) + softmax_b
 
             if labels is not None:
                 labels = tf.reshape(labels, [-1], name='list_labels')  # [batch_size * step_size]
 
                 mask = tf.greater_equal(labels, shortlist[0])
-                short_labels = tf.where(mask, shortlist[0] * tf.ones_like(labels), labels)  # set all the word >= shortlist to shortlist
-                head_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=short_labels, name='head_loss')
+                short_labels = tf.where(mask, shortlist[0] * tf.ones_like(labels),
+                                        labels)  # set all the word >= shortlist to shortlist
+                head_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=short_labels,
+                                                                           name='head_loss')
 
                 tail_loss = tf.where(mask,
-                                     np.log(shortlist[1]-shortlist[0]) * tf.ones_like(head_loss),
+                                     np.log(shortlist[1] - shortlist[0]) * tf.ones_like(head_loss),
                                      tf.zeros_like(head_loss))
 
                 loss = tf.reshape(head_loss + tail_loss, [batch_size, -1])
-                self._loss = tf.reduce_sum(self._loss) / tf.cast(tf.shape(inputs)[0], dtype=tf.float32)  # average over batch_size
+                self._loss = tf.reduce_sum(loss) / tf.cast(tf.shape(inputs)[0],
+                                                           dtype=tf.float32)  # average over batch_size
                 self._logps = -loss
             else:
                 self._loss = tf.no_op('no_loss_for_None_labels')
@@ -243,12 +250,12 @@ class ShortlistSoftmax(object):
             head_draw = tf_random_fast_choice(probs, stride)
             head_logp = -tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=head_draw)
 
-            mask = tf.greater_equal(head_draw, vocab_size-1)
+            mask = tf.greater_equal(head_draw, vocab_size - 1)
             tail_draw = tf.where(mask,
-                                 tf_random_int(tf.shape(head_draw), shortlist[1]-shortlist[0]),
+                                 tf_random_int(tf.shape(head_draw), shortlist[1] - shortlist[0]),
                                  tf.zeros_like(head_draw))
             tail_logp = tf.where(mask,
-                                 -np.log(shortlist[1]-shortlist[0]) * tf.ones_like(head_logp),
+                                 -np.log(shortlist[1] - shortlist[0]) * tf.ones_like(head_logp),
                                  tf.zeros_like(head_logp))
 
             draw = head_draw + tail_draw
@@ -269,6 +276,10 @@ class ShortlistSoftmax(object):
     @property
     def draw(self):
         return self._draw
+
+    @property
+    def logps(self):
+        return self._logps
 
 
 class AdaptiveSoftmax(object):
@@ -296,18 +307,18 @@ class AdaptiveSoftmax(object):
             inputs = tf.reshape(inputs, [-1, input_dim], name='inputs')
             labels = tf.reshape(labels, [-1], name='labels')
 
-            cluster_num = len(cutoff) - 1           # the tail cluster number
-            head_dim = cutoff[0] + cluster_num      # the head word + tail cluster number
+            cluster_num = len(cutoff) - 1  # the tail cluster number
+            head_dim = cutoff[0] + cluster_num  # the head word + tail cluster number
 
             tail_project_factor = project_factor
             tail_w = []
             for i in range(cluster_num):
                 project_dim = max(1, input_dim // tail_project_factor)
-                tail_dim = cutoff[i+1] - cutoff[i]
+                tail_dim = cutoff[i + 1] - cutoff[i]
                 tail_w.append([
-                    tf.get_variable('tail_{}_proj_w'.format(i+1),
+                    tf.get_variable('tail_{}_proj_w'.format(i + 1),
                                     [input_dim, project_dim], initializer=initializer),
-                    tf.get_variable('tail_{}_w'.format(i+1),
+                    tf.get_variable('tail_{}_w'.format(i + 1),
                                     [project_dim, tail_dim], initializer=initializer)
                 ])
                 tail_project_factor *= project_factor
@@ -318,7 +329,7 @@ class AdaptiveSoftmax(object):
             for i in range(cluster_num):
                 # set ture if current sample belonging to class i
                 mask = tf.logical_and(tf.greater_equal(labels, cutoff[i]),
-                                      tf.less(labels, cutoff[i+1]))
+                                      tf.less(labels, cutoff[i + 1]))
 
                 # update head labels
                 head_labels = tf.where(mask,
@@ -351,12 +362,11 @@ class AdaptiveSoftmax(object):
             head_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=head_logits, labels=head_labels)
             loss_list.append(head_loss)
 
-            self._loss = tf.reshape(tf.add_n(loss_list), [batch_size, -1])
-            self._loss = tf.reduce_sum(self._loss) / tf.cast(batch_size, dtype=tf.float32)
+            loss = tf.reshape(tf.add_n(loss_list), [batch_size, -1])
+            self._loss = tf.reduce_sum(loss) / tf.cast(batch_size, dtype=tf.float32)
 
+            self._logps = - loss
             # define the sample operation
-
-
 
     @property
     def loss(self):
@@ -366,6 +376,10 @@ class AdaptiveSoftmax(object):
             a 'Tensor' of shape (batch_size, step_size)
         """
         return self._loss
+
+    @property
+    def logps(self):
+        return self._logps
 
     @property
     def pred(self):
@@ -453,7 +467,7 @@ def embedding_mask(embs, lengths):
     batch_size = tf.shape(embs)[0]
     max_len = tf.shape(embs)[1]
     len_mask = tf.tile(tf.reshape(tf.range(max_len, dtype=tf.int32), [1, max_len]),
-                        [batch_size, 1])
+                       [batch_size, 1])
     len_mask = tf.less(len_mask, tf.reshape(lengths, [batch_size, 1]))
     len_mask = tf.cast(len_mask, tf.float32)  # shape (batch_size, max_len)
     len_mask = tf.expand_dims(len_mask, axis=-1)  # shape (batch_size, max_len, 1)
@@ -476,10 +490,10 @@ def linear(inputs, output_dim, activate=None, use_bias=True, name='linear', trai
     """
     with tf.name_scope(name):
         input_dim = inputs.shape[-1].value
-        w = tf.get_variable(name+'_w', [input_dim, output_dim], dtype=tf.float32, trainable=trainable)
+        w = tf.get_variable(name + '_w', [input_dim, output_dim], dtype=tf.float32, trainable=trainable)
         outputs = tf.matmul(tf.reshape(inputs, [-1, input_dim]), w)
         if use_bias:
-            b = tf.get_variable(name+'_b', [output_dim], dtype=tf.float32, trainable=trainable,
+            b = tf.get_variable(name + '_b', [output_dim], dtype=tf.float32, trainable=trainable,
                                 initializer=tf.zeros_initializer())
             outputs += b
         if activate is not None:
@@ -527,7 +541,7 @@ def concate_sequences(seqs1, lengths1, seqs2, lengths2):
         s2 = seqs2[i, 0: lengths2[i]]
         ss = tf.concat([s1, s2, tf.zeros([maxfinallen - lengths1[i] - lengths2[i]], dtype=seqs1.dtype)], axis=0)
         final_seqs = tf.concat([final_seqs, tf.reshape(ss, [1, -1])], axis=0)
-        return i+1, final_seqs
+        return i + 1, final_seqs
 
     def cond(i, _):
         return i < batch_size
@@ -583,15 +597,198 @@ def repeat(a, n, axis, name='repeat'):
         if axis < 0 or axis >= ndim:
             raise TypeError('[repeat] axis={} not match the ndim={} of tansor'.format(axis, ndim))
 
-        a_expand = tf.expand_dims(a, axis+1)
-        multiples = [1] * (ndim+1)
-        multiples[axis+1] = n
+        a_expand = tf.expand_dims(a, axis + 1)
+        multiples = [1] * (ndim + 1)
+        multiples[axis + 1] = n
         a_tile = tf.tile(a_expand, multiples)
 
-        res_shape = tf.concat([tf.shape(a)[0: axis], [-1], tf.shape(a)[axis+1:]], axis=0)
+        res_shape = tf.concat([tf.shape(a)[0: axis], [-1], tf.shape(a)[axis + 1:]], axis=0)
         a_repeat = tf.reshape(a_tile, res_shape)
 
         return a_repeat
+
+
+def rnn(inputs, lengths, rnn_hidden_size, rnn_hidden_layers, rnn_type,
+        dropout=None, reuse=None, name='rnn',
+        init_states=None):
+    """
+    create rnn module
+    Args:
+        inputs: tensor, [batch_size, max_lengths]
+        lengths: tensor, [batch_size]
+        rnn_hidden_size: int
+        rnn_hidden_layers: int
+        rnn_type: one of 'rnn', 'lstm', 'brnn', 'blstm'
+        dropout: None, or float
+        reuse: None, or True
+        name: str.
+        init_states: None or tensor
+
+    Returns:
+        outputs, states
+
+        if one-directional rnn, outputs = tensor of [batch_size, max_length, hidden_size]
+        if bi-directional rnn,  outputs = tuple( forward_outputs, backward_outputs )
+    """
+
+    # rnn cell
+    def one_lstm_cell():
+        if rnn_type.lower().find('lstm') != -1:
+            c = tf.contrib.rnn.BasicLSTMCell(rnn_hidden_size, forget_bias=0., reuse=reuse)
+        elif rnn_type.lower().find('rnn') != -1:
+            c = tf.contrib.rnn.BasicRNNCell(rnn_hidden_size, activation=tf.nn.tanh, reuse=reuse)
+        else:
+            raise TypeError('undefined rnn type = ' + rnn_type)
+        if dropout is not None and dropout > 0:
+            c = tf.contrib.rnn.DropoutWrapper(c, output_keep_prob=1. - dropout)
+        return c
+
+    with tf.name_scope(name):
+        # recurrent structure
+        if rnn_type[0].lower() == 'b':
+            cell_fw = tf.contrib.rnn.MultiRNNCell([one_lstm_cell() for _ in range(rnn_hidden_layers)])
+            cell_bw = tf.contrib.rnn.MultiRNNCell([one_lstm_cell() for _ in range(rnn_hidden_layers)])
+            outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw, cell_bw,
+                                                              inputs=inputs,
+                                                              sequence_length=lengths,
+                                                              dtype=tf.float32,
+                                                              scope=name + '_brnn')
+            outputs_fw = outputs[0]
+            outputs_bw = outputs[1]
+            final_outputs = (outputs_fw, outputs_bw)
+
+        else:
+            cell_fw = tf.contrib.rnn.MultiRNNCell([one_lstm_cell() for _ in range(rnn_hidden_layers)])
+            if init_states is None:
+                init_states = cell_fw.zero_state(tf.shape(inputs)[0], tf.float32)
+            outputs, states = tf.nn.dynamic_rnn(cell_fw,
+                                                inputs=inputs,
+                                                sequence_length=lengths,
+                                                initial_state=init_states)
+            final_outputs = outputs
+
+    return final_outputs, states
+
+
+def char_emb_cnn(inputs, char_size, embedding_size,
+                 cnn_kernel_size, cnn_kernel_width,
+                 word_to_chars, reuse=None):
+    """
+    Args:
+        inputs: tensor of int32, [batch_size, max_len]
+        char_size: int, char_vocabulary_size
+        embedding_size: int
+        cnn_kernel_size: int / a list of int
+        cnn_kernel_width: int / a list of int
+        word_to_chars: a list of list
+        reuse: reuse
+
+    Returns:
+        tensor, of shape [batch_size, max_len, output_dim]
+          output_dim = sum(cnn_kernal_size)
+    """
+    with tf.name_scope('char_emb_cnn'):
+        batch_size = tf.shape(inputs)[0]
+        max_length = tf.shape(inputs)[1]
+
+        char_arys, char_lens = reader.produce_data_to_array(word_to_chars)
+        char_max_len = char_arys.shape[1]
+        char_arys = tf.constant(char_arys, name='char_arys')
+        char_lens = tf.constant(char_lens, name='char_lens')
+
+        char_inputs = tf.gather(char_arys, tf.reshape(inputs, [-1]))  # [word_num, char_max_num]
+        char_lens = tf.gather(char_lens, tf.reshape(inputs, [-1]))  # [word_num]
+        char_mask = tf.sequence_mask(char_lens, maxlen=char_max_len, dtype=tf.float32)  # [word_num, char_max_len]
+        char_mask_ext = tf.expand_dims(char_mask, axis=-1)  # [word_num, char_max_len, 1]
+
+        # embedding
+        char_embedding = tf.get_variable('char_embedding', [char_size, embedding_size], dtype=tf.float32)
+        emb = tf.nn.embedding_lookup(char_embedding, char_inputs)  # (word_num, char_max_len, char_emb_dim)
+        emb *= char_mask_ext
+
+        # CNN
+        if isinstance(cnn_kernel_width, int):
+            cnn_kernel_width = [cnn_kernel_size]
+        if isinstance(cnn_kernel_size, int):
+            cnn_kernel_size = [cnn_kernel_size] * len(cnn_kernel_width)
+
+
+        conv_list = []
+        for w, s in zip(cnn_kernel_width, cnn_kernel_size):
+            conv = tf.layers.conv1d(
+                inputs=emb,  # set the values at positon >= length to zeros
+                filters=s,
+                kernel_size=w,
+                padding='same',
+                activation=tf.nn.relu,
+                reuse=reuse,
+                name='cnn%d' % w
+            )
+            conv_list.append(conv)
+
+        conv = tf.concat(conv_list, axis=-1) * char_mask_ext  # (word_num, char_max_len, dim)
+
+        # max-pooling
+        outputs = tf.reduce_max(conv, axis=1)  # (word_num, dim)
+        outputs = tf.reshape(outputs, [batch_size, max_length, sum(cnn_kernel_size)])  # (batch_size, max_len, dim)
+
+    return outputs
+
+
+def char_emb_rnn(inputs, char_size, embedding_size,
+                 rnn_hidden_size, rnn_hidden_layers,
+                 word_to_chars, reuse=None):
+    """
+    Using the BLSTM to achieve the char-level embedding of each words
+    Args:
+        inputs: Tensor of int32, [batch_size, max_len]
+        char_size: int
+        embedding_size: int
+        rnn_hidden_size: int
+        rnn_hidden_layers: int
+        word_to_chars: a list of list
+        reuse: None or True
+
+    Returns:
+        Tensor, of shape [batch_size, max_len, output_dim]
+          output_dim = sum(cnn_kernal_size)
+    """
+    with tf.name_scope('char_emb_rnn'):
+        batch_size = tf.shape(inputs)[0]
+        max_length = tf.shape(inputs)[1]
+
+        char_arys, char_lens = reader.produce_data_to_array(word_to_chars)
+        char_max_len = char_arys.shape[1]
+        char_arys = tf.constant(char_arys, name='char_arys')
+        char_lens = tf.constant(char_lens, name='char_lens')
+
+        char_inputs = tf.gather(char_arys, tf.reshape(inputs, [-1]))  # [word_num, char_max_num]
+        char_lens = tf.gather(char_lens, tf.reshape(inputs, [-1]))  # [word_num]
+        char_mask = tf.sequence_mask(char_lens, maxlen=char_max_len, dtype=tf.float32)  # [word_num, char_max_len]
+        char_mask_ext = tf.expand_dims(char_mask, axis=-1)  # [word_num, char_max_len, 1]
+
+        # embedding
+        char_embedding = tf.get_variable('char_embedding', [char_size, embedding_size], dtype=tf.float32)
+        emb = tf.nn.embedding_lookup(char_embedding, char_inputs)  # (word_num, char_max_len, char_emb_dim)
+        emb *= char_mask_ext
+
+        # blstm
+        rnn_outputs, _ = rnn(emb, char_lens,
+                             rnn_hidden_size=rnn_hidden_size,
+                             rnn_hidden_layers=rnn_hidden_layers,
+                             rnn_type='blstm',
+                             reuse=reuse,
+                             name='c2w_rnn')  # ([word_num, char_max_len, rnn_outputs], )
+        rnn_outputs_fw = rnn_outputs[0]
+        rnn_outputs_bw = rnn_outputs[1]
+
+        emb_fw = tf.gather_nd(rnn_outputs_fw,
+                              tf.stack([tf.range(tf.shape(rnn_outputs_fw)[0]), char_lens-1], axis=1))
+        emb_bw = rnn_outputs_bw[:, 0]
+        outputs = tf.concat([emb_fw, emb_bw], axis=-1)
+        outputs = tf.reshape(outputs, [batch_size, max_length, rnn_hidden_size * 2])  # (batch_size, max_len, dim)
+
+    return outputs
 
 
 class TrainOp(object):
@@ -624,9 +821,11 @@ class TrainOp(object):
             if isinstance(loss, list):
                 print('[layers.TrainOp] input gradient, opt_method=%s' % optimize_method)
                 grads = loss
+                self.loss = None
             else:
                 print('[layers.TrainOp] input loss, opt_method=%s' % optimize_method)
                 grads = tf.gradients(loss, tvars)
+                self.loss = loss
             if max_grad_norm is not None:
                 grads, _ = tf.clip_by_global_norm(grads, max_grad_norm)
 
@@ -659,7 +858,12 @@ class TrainOp(object):
         session.run(self._update_lr, {self._new_lr: learning_rate})
 
     def update(self, session, feed_dict=None):
-        session.run(self._train_op, feed_dict)
+        if self.loss is None:
+            session.run(self._train_op, feed_dict)
+            return None
+        else:
+            v = session.run([self._train_op, self.loss], feed_dict)
+            return v[1]  # return loss
 
 
 def logaddexp(a, b):
@@ -675,13 +879,10 @@ def logaddexp(a, b):
     return tf.reduce_logsumexp(tf.stack([a, b]), axis=0)
 
 
+def logsubexp(a, b):
+    c = tf.maximum(a, b)
+    return c + tf.log(tf.exp(a - c) - tf.exp(b - c))
 
 
-
-
-
-
-
-
-
-
+def log1mexp(x):
+    return logsubexp(tf.zeros_like(x), x)

@@ -181,6 +181,14 @@ def hard_class_seqs(word_seq_list, word_to_class=None):
     return seq_list
 
 
+class EmptyFile(object):
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return None
+
+
 class Data(object):
     """
     Read the multiple files including the word/char and tag informations
@@ -231,6 +239,7 @@ class Data(object):
                 files_all += self.test_file_list
 
             self.load_vocab(files_all, beg_token, end_token, unk_token)
+        self.vocabs[0].create_chars()
 
         # load files
         print('[%s.%s] Load data...' % (__name__, self.__class__.__name__))
@@ -262,28 +271,33 @@ class Data(object):
 
     def load_file(self, file_tuple):
         seq_list = []
-        fp_list = [open(fname, 'rt') for fname in file_tuple]
+        fp_list = [EmptyFile() if fname is None else open(fname, 'rt') for fname in file_tuple]
         for line_tuple in zip(*fp_list):
 
             ids_list = []
             for v, line in zip(self.vocabs, line_tuple):
-                ws = line.split()
-                if self.beg_token is not None:
-                    ws.insert(0, self.beg_token)
-                if self.end_token is not None:
-                    ws.append(self.end_token)
-                ids = v.words_to_ids(ws, self.unk_token)
-                ids_list.append(ids)
+                if line is not None:
+                    ws = line.split()
+                    if self.beg_token is not None:
+                        ws.insert(0, self.beg_token)
+                    if self.end_token is not None:
+                        ws.append(self.end_token)
+                    ids = v.words_to_ids(ws, self.unk_token)
+                    ids_list.append(ids)
+                else:
+                    ids_list.append(None)
 
-            ids_len = [len(ids) for ids in ids_list]
+            ids_len = [len(ids) for ids in filter(lambda x: x is not None, ids_list)]
             if not np.all(np.array(ids_len) == ids_len[0]):
                 raise TypeError('[%s.%s] the lengths for each level is not equal\n' %
                                 (__name__, self.__class__.__name__) +
                                 'lengths={}\n'.format(ids_len) +
                                 'line_tuple={}'.format(line_tuple))
 
-            seq = Seq(ids_len[0], len(ids_len))
-            seq.x = np.array(ids_list)
+            seq = Seq(ids_len[0], len(file_tuple))
+            for i, ids in enumerate(ids_list):
+                if ids is not None:
+                    seq.x[i] = np.array(ids)
 
             # remove the empty and sequeces longer than max_len
             if seq.get_length() > self.max_len or seq.get_length() <= 0:
@@ -320,11 +334,28 @@ class Data(object):
                 f.write(str(seq) + '\n')
 
     def write_text(self, seq_list, file_name):
-        with open(file_name, 'wt') as f:
-            for seq in seq_list:
-                for v, ids in zip(self.vocabs, seq.x):
-                    words = v.ids_to_words(ids)
-                    f.write(' '.join(words) + '\n')
+        """
+        Args:
+            seq_list:
+            file_name: str or tuple of str.
+                    if str, then write to one single files;
+                    if a tuple of str, then write each level to different files
+
+        Returns:
+            None
+        """
+        if isinstance(file_name, str):
+            with open(file_name, 'wt') as f:
+                for seq in seq_list:
+                    for v, ids in zip(self.vocabs, seq.x):
+                        words = v.ids_to_words(ids)
+                        f.write(' '.join(words) + '\n')
+        else:
+            for i, fname in enumerate(file_name):
+                with open(fname, 'wt') as f:
+                    for seq in seq_list:
+                        words = self.vocabs[i].ids_to_words(seq.x[i])
+                        f.write(' '.join(words) + '\n')
 
     def set_iter_config(self, batch_size, is_shuffle=True):
         self.train_batch_size = batch_size
@@ -410,6 +441,9 @@ class Data(object):
     def get_vocab_size(self):
         return self.vocabs[0].get_size()
 
+    def get_char_size(self):
+        return self.vocabs[0].get_char_size()
+
     def get_tag_size(self):
         return self.vocabs[1].get_size()
 
@@ -488,7 +522,7 @@ class DataX(Data):
                     raise TypeError('[%s.%s] the lengths for each level is not equal\n' %
                                     (__name__, self.__class__.__name__) +
                                     'lengths={}\n'.format(ids_len) +
-                                    'line_tuple={}'.format(line_tuple))
+                                    'line_tuple={}'.format(line_list))
 
                 seq = Seq(np.array(ids_list))
 

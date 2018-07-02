@@ -11,6 +11,8 @@ from lm import *
 def small_config(data):
     config = lstmlm.Config()
     config.vocab_size = data.get_vocab_size()
+    # config.softmax_type = 'Shortlist'
+    # config.adaptive_softmax_cutoff = [5000, config.vocab_size]
     config.embedding_size = 200
     config.hidden_size = 200
     config.hidden_layers = 2
@@ -92,7 +94,8 @@ def main(_):
 
     write_model = os.path.join(work_dir, 'model.ckpt')  # lm = lstmlm.FastLM(config, device_list=['/gpu:0', '/gpu:0'])
 
-    lm = lstmlm.LM(config, device='/gpu:0')
+    # lm = lstmlm.LM(config, data, device='/gpu:0')
+    lm = lstmlm.FastLM(config, data, device_list=['/gpu:0', '/gpu:1'])
 
     sv = tf.train.Supervisor(logdir=os.path.join(work_dir, 'logs'),
                              summary_op=None, global_step=lm.global_step())
@@ -101,10 +104,14 @@ def main(_):
     session_config.gpu_options.allow_growth = True
     with sv.managed_session(config=session_config) as session:
 
+        ops = lstmlm.DefaultOps(session, lm, nbest, logdir=work_dir)
+        # ops.perform(0, 0)
+
         lm.train(session, data,
                  write_model=write_model,
                  write_to_res=('results.txt', create_name(config)),
-                 is_shuffle=False)
+                 is_shuffle=False,
+                 operation=ops)
 
         print('compute the WER...')
         t_beg = time.time()

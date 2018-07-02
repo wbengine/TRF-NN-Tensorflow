@@ -26,7 +26,7 @@ class Config(wb.Config):
 
         # potential features
         #  for tags
-        self.tag_config = tagphi.TagConfig(data)  # discrete features
+        self.tag_config = tagphi.TagBigramConfig(data)  # discrete features
         self.mix_config = mixphi.MixNetConfig(data)  # discrete features
 
         # for words
@@ -113,8 +113,9 @@ class CRF(object):
         self.name = name
 
         # phi for tags
-        self.phi_tag = tagphi.TagPhi(config.tag_config, data.datas[0], config.opt_tag)
-        self.phi_mix = mixphi.create(config.mix_config, data.datas[0], config.opt_mix, device)
+        # self.phi_tag = tagphi.TagPhi(config.tag_config, data.datas[0], config.opt_tag)
+        self.phi_tag = tagphi.TagBigram(config.tag_config, data.datas[0], config.opt_tag)
+        self.phi_mix = mixphi.create(config.mix_config, data, config.opt_mix, device)
 
         assert self.phi_tag.get_order() >= self.phi_mix.get_order()
 
@@ -181,23 +182,23 @@ class CRF(object):
             a += self.phi_mix.get_value(seq_list)
         return a
 
-    def phi_depend_on_tag(self, seq_list, depend_on_pos):
-        """
-        compute the phi only depending on the tags at given position
-        Args:
-            seq_list: a list of Seq()
-            depend_on_pos: integer
-
-        Returns:
-            the phis
-        """
-        a = np.zeros(len(seq_list))
-        if self.phi_tag is not None:
-            a += self.phi_tag.get_value(seq_list, depend_on=(1, depend_on_pos))
-        if self.phi_mix is not None:
-            a += self.phi_mix.get_value(seq_list, depend_on=(1, depend_on_pos))
-
-        return a
+    # def phi_depend_on_tag(self, seq_list, depend_on_pos):
+    #     """
+    #     compute the phi only depending on the tags at given position
+    #     Args:
+    #         seq_list: a list of Seq()
+    #         depend_on_pos: integer
+    #
+    #     Returns:
+    #         the phis
+    #     """
+    #     a = np.zeros(len(seq_list))
+    #     if self.phi_tag is not None:
+    #         a += self.phi_tag.get_value(seq_list, depend_on=(1, depend_on_pos))
+    #     if self.phi_mix is not None:
+    #         a += self.phi_mix.get_value(seq_list, depend_on=(1, depend_on_pos))
+    #
+    #     return a
 
     def get_tag_logps(self, seq_list, tag_pos):
         logps = self.phi_tag.get_propose_logps(seq_list, tag_pos) + self.phi_mix.get_propose_logps(seq_list, tag_pos)
@@ -630,13 +631,11 @@ class CRF(object):
 
 
 class DefaultOps(wb.Operation):
-    def __init__(self, m, test_seq_list):
+    def __init__(self, m, valid_seq_list, test_seq_list):
         super().__init__()
 
         self.m = m
-        self.test_seq_list = test_seq_list
-        self.wod_seq_list = seq.get_x(test_seq_list)
-        self.tag_seq_list = seq.get_h(test_seq_list)
+        self.seq_list_tuple = (valid_seq_list, test_seq_list)
 
         self.perform_next_epoch = 1.0
         self.perform_per_epoch = 1.0
@@ -644,23 +643,32 @@ class DefaultOps(wb.Operation):
 
     def perform(self, step, epoch):
         print('[Ops] performing')
-        # tagging
-        time_beg = time.time()
-        tag_res_list, _ = self.m.get_tag(self.wod_seq_list)
-        tag_time = time.time() - time_beg
 
-        # write
-        log.write_seq_to_file(tag_res_list, os.path.join(self.m.logdir, 'test_res.tag'))
-        log.write_seq_to_file(self.tag_seq_list, os.path.join(self.m.logdir, 'test_correct.tag'))
+        res_prec = []
+        res_time = []
+        for name, seq_list in zip(['valid', 'test'], self.seq_list_tuple):
+            # tagging
+            time_beg = time.time()
+            tag_res_list, _ = self.m.get_tag(seq.get_x(seq_list))
+            tag_time = time.time() - time_beg
 
-        # compute wer
-        P, R, F = seq.tag_error(self.tag_seq_list, tag_res_list)
+            # write
+            log.write_seq_to_file(tag_res_list, os.path.join(self.m.logdir, 'result_%s.tag' % name))
+            gold_tag = seq.get_h(seq_list)
+            log.write_seq_to_file(gold_tag, os.path.join(self.m.logdir, 'result_%s.gold.tag' % name))
 
-        print('epoch={:.2f} P={:.2f} R={:.2f} F={:.2f} rescore_time={:.2f}'.format(
-               epoch, P, R, F, tag_time / 60))
+            # compute wer
+            P, R, F = seq.tag_error(gold_tag, tag_res_list)
+
+            res_prec.append(P)
+            res_time.append(tag_time / 60)
+
+        print('epoch={:.2f} valid={:.2f} test={:.2f} valid_time={:.2f} test_time={:.2f}'.format(
+            epoch, res_prec[0], res_prec[1], res_time[0], res_time[1]
+        ))
 
         res = wb.FRes(os.path.join(self.m.logdir, 'results_tag_err.log'))
         res_name = 'epoch%.2f' % epoch
-        res.Add(res_name, ['P', 'R', 'F'], [P, R, F])
+        res.Add(res_name, ['valid', 'test'], res_prec)
 
 

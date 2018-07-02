@@ -12,20 +12,21 @@ fres = wb.FRes(res_file)  # the result file
 
 with open('data.info') as f:
     data_info = json.load(f)
-train = data_info['train'][0][0]
-valid = data_info['valid'][0][0]
-test = data_info['test'][0][0]
 
 
 def main():
 
-    data = reader.Data().load_raw_data([train, valid, test],
-                                       add_beg_token='<s>',
-                                       add_end_token='</s>')
+    data = seq.Data(vocab_files=data_info['vocab'],
+                    train_list=data_info['train'],
+                    valid_list=data_info['valid'],
+                    test_list=data_info['test']
+                    )
+
+    data = data.create_data()
     nbest = reader.NBest(*data_info['nbest'])
 
     config = ngramlm.Config(data)
-    config.res_file = 'results.txt'
+    config.res_file = res_file
 
     if wb.is_window():
         bindir = 'd:\\wangbin\\tools'

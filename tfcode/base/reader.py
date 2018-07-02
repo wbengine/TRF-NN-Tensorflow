@@ -6,6 +6,7 @@ from sklearn.cluster import KMeans
 # import tensorflow as tf
 from . import wblib as wb
 from . import word2vec
+from . import vocab
 
 
 class Data(object):
@@ -213,7 +214,9 @@ class Data(object):
                                                   ))
 
     def write_data(self, seq_list, write_file,
-                   skip_beg_token=False, skip_end_token=False, write_text=False):
+                   skip_beg_token=False, skip_end_token=False,
+                   write_text=False,
+                   append=False):
         """
         write data to file
         Args:
@@ -222,6 +225,7 @@ class Data(object):
             skip_beg_token: if True then remove the beg-token
             skip_end_token: if True then remove the end-token
             write_text: if True then write the text instead of the token-id
+            append: write with 'at'
 
         Returns:
             None
@@ -230,8 +234,10 @@ class Data(object):
             write_data = self.datas[seq_list]
         else:
             write_data = seq_list
+
         # write
-        with open(write_file, 'wt') as f:
+        write_form = 'at' if append else 'wt'
+        with open(write_file, write_form) as f:
             for wid in write_data:
                 write_ids = list(wid)
                 if skip_beg_token and self.beg_token_str is not None:
@@ -510,7 +516,10 @@ class LargeData(Data):
                                 add_beg_token=None,
                                 add_end_token='</s>',
                                 add_unknwon_token='<unk>',
-                                max_length=None, reverse_sentence=False):
+                                max_length=None,
+                                reverse_sentence=False,
+                                vocab_max_size=20000,
+                                vocab_cutoff=0):
         """
         init the data
         Args:
@@ -537,19 +546,14 @@ class LargeData(Data):
         self.unk_token_str = add_unknwon_token
 
         # read vocabulary
-        self.word_to_id = dict()
-        self.word_list = []
-        self.word_count = []
-        with open(sorted_vocab_file, 'rt') as f:
-            for line in f:
-                a = line.split()
-                i = int(a[0])
-                w = a[1]
-                self.word_to_id[w] = i
-                self.word_list.append(w)
-                assert len(self.word_list) == i + 1
-                if len(a) >= 3:
-                    self.word_count.append(int(a[2]))
+        if sorted_vocab_file is not None:
+            v = vocab.Vocab()
+            v.read(sorted_vocab_file)
+            self.word_to_id = v.word_to_id
+            self.word_list = v.words
+            self.word_count = v.count
+        else:
+            self.create_vocab(cutoff=vocab_cutoff, max_size=vocab_max_size)
 
         self.datas = []
         for fname in [self.train_file_list[self.train_file_num], valid_file, test_file]:
@@ -561,6 +565,17 @@ class LargeData(Data):
         # self.cut_train_to_length(self.max_length)
         self.train_file_num += 1
         return self
+
+    def create_vocab(self, cutoff=0, max_size=20000):
+        v = vocab.Vocab()
+        v.generate_vocab(self.train_file_list, cutoff=cutoff, max_size=max_size,
+                         add_beg_token=self.beg_token_str,
+                         add_end_token=self.end_token_str,
+                         add_unk_token=self.unk_token_str,
+                         to_lower=True)
+        self.word_to_id = v.word_to_id
+        self.word_list = v.words
+        self.word_count = v.count
 
     def next_train(self):
         self.datas[0] = self.load_data(self.train_file_list[self.train_file_num % len(self.train_file_list)],
@@ -579,6 +594,64 @@ class LargeData(Data):
         print('[{}.LargeData] get the unigram for multiple corpus'.format(__name__))
         count = np.array(self.word_count)
         return count / np.sum(count)
+
+
+class DataIter(object):
+    def __init__(self, batch_size, data, is_shuffle=True):
+        self.batch_size = batch_size
+        self.data = data
+
+        self.iter_cur_line = 0
+        self.iter_cur_epoch = 0
+        self.is_shuffle = is_shuffle
+
+        if self.is_shuffle:
+            np.random.shuffle(self.data.datas[0])
+
+    def next_for_data(self):
+        assert isinstance(self.data, Data)
+
+        if self.iter_cur_line + self.batch_size > len(self.data.datas[0]):
+            self.iter_cur_epoch += 1
+            self.iter_cur_line = 0
+            if self.is_shuffle:
+                np.random.shuffle(self.data.datas[0])
+
+        data_seqs = self.data.datas[0][self.iter_cur_line: self.iter_cur_line + self.batch_size]
+        self.iter_cur_line += self.batch_size
+        return data_seqs
+
+    def next_for_large(self):
+        assert isinstance(self.data, LargeData)
+
+        if self.iter_cur_line + self.batch_size > len(self.data.datas[0]):
+            self.iter_cur_line = 0
+
+            self.data.next_train()
+            if self.is_shuffle:
+                np.random.shuffle(self.data.datas[0])
+
+            self.iter_cur_epoch = self.data.get_train_epoch()
+
+        data_seqs = self.data.datas[0][self.iter_cur_line: self.iter_cur_line + self.batch_size]
+        self.iter_cur_line += self.batch_size
+        return data_seqs
+
+    def get_epoch(self):
+        rate = self.iter_cur_line / len(self.data.datas[0])
+        if isinstance(self.data, LargeData):
+            return ((self.data.train_file_num-1) + rate) / len(self.data.train_file_list)
+        else:
+            return self.iter_cur_epoch + rate
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if isinstance(self.data, LargeData):
+            return self.next_for_large()
+        else:
+            return self.next_for_data()
 
 
 def _string_format(s):

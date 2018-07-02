@@ -5,6 +5,7 @@
 import os
 import sys
 import numpy as np
+import glob
 
 from base import *
 
@@ -136,7 +137,7 @@ class Config:
 
 
 class Model:
-    def __init__(self, config, data, bindir, workdir, name='ngram'):
+    def __init__(self, config, data, bindir, workdir, datadir=None, name='ngram'):
         self.config = config
         self.data = data
         self.name = name
@@ -144,17 +145,36 @@ class Model:
         self.bindir = os.path.join(bindir, '')
         wb.mkdir(workdir)
 
+        self.data_dir = wb.mkdir(datadir if datadir is not None else workdir)
+
         # write id to files
-        name_list = ['train', 'valid', 'test']
-        for seq_list, fname in zip(self.data.datas, name_list):
-            self.data.write_data(seq_list, self.workdir + fname + '.id',
-                                 skip_beg_token=True,
-                                 skip_end_token=True)
-        # write vocab to files
-        with open(self.workdir + 'vocab', 'wt') as f:
-            f.write('<s>\n</s>\n')
-            for i in range(2, self.data.get_vocab_size()):
-                f.write('{}\t{}\n'.format(i, self.data.word_list[i]))
+        if wb.exists(os.path.join(self.data_dir, 'vocab')):
+            print('exist data, skip')
+        else:
+            if isinstance(self.data, reader.LargeData):
+                print('print largeData, file_num={}'.format(len(self.data.train_file_list)))
+                for i in range(len(self.data.train_file_list)):
+                    self.data.write_data(self.data.datas[0], os.path.join(self.data_dir, 'train%d.id' % i),
+                                         skip_beg_token=True, skip_end_token=True, append=False)
+                    self.data.next_train()
+
+                self.data.write_data(self.data.datas[1], os.path.join(self.data_dir, 'valid.id'),
+                                     skip_beg_token=True, skip_end_token=True)
+                self.data.write_data(self.data.datas[2], os.path.join(self.data_dir, 'test.id'),
+                                     skip_beg_token=True, skip_end_token=True)
+            else:
+                name_list = ['train', 'valid', 'test']
+                for seq_list, fname in zip(self.data.datas, name_list):
+                    self.data.write_data(seq_list, self.data_dir + fname + '.id',
+                                         skip_beg_token=True,
+                                         skip_end_token=True)
+
+            # write vocab to files
+            with open(self.data_dir + 'vocab', 'wt') as f:
+                f.write('<s>\n</s>\n')
+                for i, w in enumerate(self.data.word_list):
+                    if w != '<s>' and w != '</s>':
+                        f.write('{}\t{}\n'.format(i, w))
 
     def train(self, write_to_res=None):
         write_count = self.workdir + self.name + '.count'
@@ -165,14 +185,50 @@ class Model:
         else:
             cutoff_cmd = ' '.join(['-gt{}min {}'.format(i+1, n) for i, n in enumerate(self.config.cutoff)])
 
-            cmd = self.bindir + 'ngram-count '
-            cmd += ' -text {0}train.id -vocab {0}vocab'.format(self.workdir)
-            cmd += ' -order {} -write {} '.format(self.config.order, write_count)
-            cmd += cutoff_cmd + ' '
-            os.system(cmd)
+            if wb.exists(os.path.join(self.data_dir, 'train.id')):
+                print('1 corpus file')
 
+                cmd = self.bindir + 'ngram-count '
+                cmd += ' -text {} -vocab {}'.format(os.path.join(self.data_dir, 'train.id'),
+                                                    os.path.join(self.data_dir, 'vocab'))
+                cmd += ' -order {} -write {} '.format(self.config.order, write_count)
+                cmd += cutoff_cmd + ' '
+                os.system(cmd)
+
+            else:
+                train_files = glob.glob(os.path.join(self.data_dir, 'train*.id'))
+                count_dir = os.path.join(self.data_dir, 'count_order%d' % self.config.order)
+
+                if wb.exists(count_dir):
+                    print('count exist, skip')
+                else:
+                    count_dir = wb.mkdir(count_dir)
+                    count_files = []
+                    print('%d corpus files' % len(train_files))
+                    for i, cur_file in enumerate(train_files):
+                        cur_count = os.path.join(count_dir, 'part%d.count' % i)
+                        count_files.append(cur_count)
+
+                        print('count to', cur_count)
+                        cmd = self.bindir + 'ngram-count '
+                        cmd += ' -text {} -vocab {}'.format(cur_file,
+                                                            os.path.join(self.data_dir, 'vocab'))
+                        cmd += ' -order {} -write {} '.format(self.config.order, cur_count)
+                        os.system(cmd)
+
+                if wb.exists(write_count):
+                    print('count exist, skip')
+                else:
+                    print('merge count to', write_count)
+                    cmd = os.path.join(self.bindir, 'ngram-merge')
+                    cmd += ' ' + os.path.join(count_dir, 'part*.count') + ' > ' + write_count
+                    print(cmd)
+                    os.system(cmd)
+
+            # train ngram
+            print('train...')
             cmd = self.bindir + 'ngram-count '
-            cmd += ' -vocab {}vocab'.format(self.workdir)
+            cmd += ' -vocab {}'.format(os.path.join(self.data_dir, 'vocab'))
             cmd += ' -read {}'.format(write_count)
             cmd += ' -order {} -lm {} '.format(self.config.order, write_model)
             cmd += self.config.discount + ' -interpolate ' + cutoff_cmd
@@ -184,7 +240,9 @@ class Model:
                 raise TypeError('write_to_res should be a tuple like (res_file_name, model_name).')
             print('compute ppl...')
             PPL = [0] * 3
-            testno = [self.workdir + s + '.id' for s in ['train', 'valid', 'test']]
+            testno = [self.data_dir + s + '.id' for s in ['train', 'valid', 'test']]
+            if not wb.exists(testno[0]):
+                testno[0] = testno[1]
             for i in range(min(len(self.data.datas), len(testno))):
                 PPL[i] = self.ppl(testno[i], type='id')
             res_file = wb.FRes(write_to_res[0])

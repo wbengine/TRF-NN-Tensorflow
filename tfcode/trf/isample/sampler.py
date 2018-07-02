@@ -1,17 +1,26 @@
 import tensorflow as tf
+import copy
 from base import *
 
 from trf.nce import noise
 from . import lstm
 
 
-def create_sampler(trf_config, data, device='/gpu:0'):
+def create_sampler(trf_config, data, device='/gpu:0', limit_vocab=None):
     if isinstance(trf_config.sampler_config, LSTM.Config):
-        return LSTM(trf_config, device)
+        sampler = LSTM(trf_config, device)
+    elif isinstance(trf_config.sampler_config, LSTMLen.Config):
+        sampler = LSTMLen(trf_config, device)
     elif isinstance(trf_config.sampler_config, Ngram.Config):
-        return Ngram(trf_config, data)
+        sampler = Ngram(trf_config, data)
     else:
         raise TypeError('[{}] undefined sampler_config type = {}'.format(__name__, type(trf_config.sampler_config)))
+
+    if limit_vocab is not None and limit_vocab < trf_config.vocab_size:
+        print('[{}] create limit_vocab_sampler'.format(__name__))
+        return LimitVocab(sampler, data, limit_vocab)
+    else:
+        return sampler
 
 
 class Base(object):
@@ -28,7 +37,15 @@ class Base(object):
         return np.zeros(len(sample_list))
 
     def eval_nll(self, sample_list):
-        return 0
+        logps = self.get_log_probs(sample_list)
+        nll = -np.mean(logps)
+        return nll
+
+    def eval_ppl(self, sample_list):
+        logps = self.get_log_probs(sample_list)
+        words = np.sum([len(x) - 1 for x in sample_list])
+        ppl = np.exp(-np.sum(logps) / words)
+        return ppl
 
     def update(self, sample_list, scale, lr=None):
         pass
@@ -40,15 +57,93 @@ class Base(object):
         pass
 
 
+def data_reduce_vocab(seq_list, limit_vocab):
+    res_list = copy.deepcopy(seq_list)
+    for s in res_list:
+        for i in range(len(s)):
+            if s[i] >= limit_vocab:
+                s[i] = limit_vocab - 1
+    return res_list
+
+
+class LimitVocab(Base):
+    def __init__(self, base_sampler, data, limit_vocab=10000):
+        super().__init__(base_sampler.config)
+        self.base_sampler = base_sampler
+
+        self.vocab_unigram = data.get_unigram()
+        self.limit_vocab_size = limit_vocab
+        self.vocab_size = data.get_vocab_size()
+        self.extra_vocab_unigram = self.vocab_unigram[self.limit_vocab_size:]
+        self.extra_vocab_unigram /= np.sum(self.extra_vocab_unigram)
+        self.extra_vocab_unigram = sp.FastProb(self.extra_vocab_unigram)
+
+        if self.limit_vocab_size < self.vocab_size:
+            print('[{}.{}] for large vocabulary!'.format(__name__, self.__class__.__name__))
+            print('[{}.{}] extra_vocab_unigram size={}'.format(__name__, self.__class__.__name__, self.extra_vocab_unigram.size))
+
+    def data_reduce_vocab(self, seq_list):
+        if self.limit_vocab_size == self.vocab_size:
+            return seq_list
+        return data_reduce_vocab(seq_list, self.limit_vocab_size)
+
+    def data_extend_vocab(self, seq_list):
+        if self.limit_vocab_size == self.vocab_size:
+            return seq_list
+
+        for s in seq_list:
+            for i in range(len(s)):
+                if s[i] == self.limit_vocab_size - 1:
+                    s[i] += self.extra_vocab_unigram.sample()
+        return seq_list
+
+    def get_extra_logp(self, seq_list):
+        if self.limit_vocab_size == self.vocab_size:
+            return 0
+
+        logps_extra = []
+        for s in seq_list:
+            logp = 0
+            for i in range(len(s)):
+                if s[i] >= self.limit_vocab_size:
+                    logp += np.log(self.extra_vocab_unigram[s[i] - self.limit_vocab_size])
+            logps_extra.append(logp)
+        return np.array(logps_extra)
+
+    def initialize(self):
+        self.base_sampler.initialize()
+
+    def get_log_probs(self, sample_list):
+        logp = self.base_sampler.get_log_probs(self.data_reduce_vocab(sample_list))
+        return logp + self.get_extra_logp(sample_list)
+
+    def generate(self, num):
+        sample_list = self.base_sampler.generate(num)
+        return self.data_extend_vocab(sample_list)
+
+    def update(self, sample_list, scale, lr=None):
+        return self.base_sampler.update(self.data_reduce_vocab(sample_list), scale, lr)
+
+    def save(self, fname):
+        self.base_sampler.save(fname)
+
+    def restore(self, fname):
+        self.base_sampler.restore(fname)
+
+
 class LSTM(Base):
     class Config(lstm.Config):
         def __str__(self):
             return 'LSTMGen'
 
     def __init__(self, trf_config, device):
+        """
+        :param trf_config:
+        :param device: str or a list of str, such as '/gpu:0' or ['/gpu:0', '/gpu:1']
+        """
         super().__init__(trf_config)
         self.len_prob = trf_config.pi_0
-        self.lstm = lstm.Model(trf_config.sampler_config, device=device, name='auxiliary_lstm')
+        self.lstm = lstm.Model(trf_config.sampler_config, devices=device, name='auxiliary_lstm')
 
     def generate(self, num):
         sample_list = []
@@ -67,15 +162,7 @@ class LSTM(Base):
         return sample_list
 
     def get_log_probs(self, sample_list):
-        return self.lstm.get_log_probs(tf.get_default_session(), sample_list)
-
-    def eval_nll(self, sample_list):
-        nll, _ = self.lstm.eval(tf.get_default_session(), sample_list)
-        return nll
-
-    def eval_ppl(self, sample_list):
-        nll, ppl = self.lstm.eval(tf.get_default_session(), sample_list)
-        return ppl
+        return self.lstm.get_log_probs(tf.get_default_session(), sample_list, 100)
 
     def update(self, sample_list, scale, lr=None, batch_size=100):
         for i in range(0, len(sample_list), batch_size):
@@ -128,91 +215,86 @@ class LSTM(Base):
 
 class LSTMLen(Base):
     class Config(lstm.Config):
+        def __init__(self, data_or_vocab_size=1000, hidden_size=200, hidden_layers=2):
+            super().__init__(data_or_vocab_size, hidden_size, hidden_layers)
+            self.max_batch_per_core = 128
+
         def __str__(self):
             return 'LSTMLenGen'
 
-    def __init__(self, trf_config, device):
+    def __init__(self, trf_config, device='/gpu:0'):
         super().__init__(trf_config)
 
+        self.sampler_config = trf_config.sampler_config
         self.len_prob = np.array(trf_config.pi_0)
-        self.update_len_prob = True
-        self.lstm = lstm.Model(trf_config.sampler_config, device=device, name='auxiliary_lstm_len')
+
+        # SUPPORT: trf_config.sampler_config.vocab_size <= trf_config.vocab_size
+        self.device_num = 1 if isinstance(device, str) else len(device)
+
+        self.lstm = lstm.Model(trf_config.sampler_config, devices=device, name='auxiliary_lstm_len')
 
     def generate(self, num):
         sample_list = []
 
-        batch_size = 128
-        while len(sample_list) < num:
-            lengths = np.random.choice(len(self.len_prob), size=batch_size, p=self.len_prob)
+        lengths = np.random.choice(len(self.len_prob), size=num, p=self.len_prob)
+        assert np.all(lengths >= self.config.min_len)
 
-            max_len = np.max(lengths)
-            wlist = self.lstm.draw_seqs(tf.get_default_session(), batch_size,
-                                        self.config.beg_token, None,
-                                        max_length=max_len)
-            for w, l in zip(wlist, lengths):
-                w = w[0: l]
-                w[-1] = self.config.end_token
-                if len(w) >= self.config.min_len:
-                    sample_list.append(w)
+        wlist = self.lstm.draw_seqs(tf.get_default_session(), num,
+                                    self.config.beg_token, None,
+                                    max_length=np.max(lengths))
 
-        sample_list = sample_list[0:num]
+        for w, l in zip(wlist, lengths):
+            w = w[0: l]
+            w[-1] = self.config.end_token
+            sample_list.append(w)
+
+        # batch_size = self.sampler_config.max_batch_per_core * self.device_num
+        # while len(sample_list) < num:
+        #     lengths = np.random.choice(len(self.len_prob), size=batch_size, p=self.len_prob)
+        #
+        #     max_len = np.max(lengths)
+        #     wlist = self.lstm.draw_seqs(tf.get_default_session(), batch_size,
+        #                                 self.config.beg_token, None,
+        #                                 max_length=max_len)
+        #     for w, l in zip(wlist, lengths):
+        #         w = w[0: l]
+        #         w[-1] = self.config.end_token
+        #         if len(w) >= self.config.min_len:
+        #             sample_list.append(w)
+        #
+        # sample_list = sample_list[0:num]
         return sample_list
 
-    def add_noise(self, seq_list):
-        seqs = self.lstm.add_noise(tf.get_default_session(), seq_list)
-        return seqs
+    # def add_noise(self, seq_list):
+    #     seqs = self.lstm.add_noise(tf.get_default_session(), seq_list)
+    #     return self.data_from_lstm(seqs)
+
+    def get_log_probs_given_len(self, sample_list):
+        sample_list_noend = [x[0:-1] for x in sample_list]
+        logps = self.lstm.get_log_probs(tf.get_default_session(), sample_list_noend, max_batch_size=100)
+
+        return logps
 
     def get_log_probs(self, sample_list):
         logps = self.get_log_probs_given_len(sample_list)
 
         lengths = [len(x) for x in sample_list]
         return logps + np.log(self.len_prob[lengths])
-        # return self.lstm.get_log_probs(tf.get_default_session(), sample_list)
 
-    def get_log_probs_given_len(self, sample_list):
-        sample_list_noend = [x[0:-1] for x in sample_list]
-        logps = self.lstm.get_log_probs(tf.get_default_session(), sample_list_noend)
-
-        return logps
-
-    def get_log_probs_duel(self, sample_list):
-        logpl = self.get_log_probs_given_len(sample_list)
-
-        lengths = [len(x) for x in sample_list]
-        logp = logpl + np.log(self.len_prob[lengths])
-        return logpl, logp
-
-    def eval_nll(self, sample_list):
-        logps = self.get_log_probs(sample_list)
-        nll = -np.mean(logps)
-        return nll
-
-    def eval_ppl(self, sample_list):
-        logps = self.get_log_probs(sample_list)
-        words = np.sum([len(x) - 1 for x in sample_list])
-        ppl = np.exp(-np.sum(logps) / words)
-        return ppl
+    # def get_log_probs_duel(self, sample_list):
+    #     logpl = self.get_log_probs_given_len(sample_list)
+    #
+    #     lengths = [len(x) for x in sample_list]
+    #     logp = logpl + np.log(self.len_prob[lengths])
+    #     return logpl, logp
 
     def update(self, sample_list, scale, lr=None):
         # update lstm
-        batch_size = 100
+        batch_size = self.sampler_config.max_batch_per_core
         for i in range(0, len(sample_list), batch_size):
             sample_list_noend = [x[0:-1] for x in sample_list[i: i+batch_size]]
             # sample_list_noend = sample_list
             self.lstm.update(tf.get_default_session(), sample_list_noend, scale[i: i+batch_size], learning_rate=lr)
-
-        # update pi
-        if self.update_len_prob:
-            g = np.zeros_like(self.len_prob)
-            for x, s in zip(sample_list, scale):
-                g[len(x)] += s
-            g /= np.sum(g)
-            self.len_prob = 0.99 * self.len_prob + 0.01 * g
-
-            uniform_prob = np.zeros_like(self.len_prob)
-            uniform_prob[self.config.min_len:] = 1
-            uniform_prob /= np.sum(uniform_prob)
-            self.len_prob = 0.9 * self.len_prob + 0.1 * uniform_prob
 
     def save(self, fname):
         self.lstm.save(tf.get_default_session(), fname)
@@ -223,8 +305,9 @@ class LSTMLen(Base):
 
 class Ngram(Base):
     class Config(wb.Config):
-        def __init__(self):
+        def __init__(self, vocab_size):
             super().__init__()
+            self.vocab_size = vocab_size
             self.order = 2
 
         def __str__(self):
@@ -235,16 +318,21 @@ class Ngram(Base):
         self.len_prob = trf_config.pi_0
 
         noise_config = noise.Config()
-        noise_config.pack_size = trf_config.sample_batch_size
+        noise_config.pack_size = trf_config.batch_size
         noise_config.min_len = trf_config.min_len
         noise_config.max_len = trf_config.max_len
         noise_config.beg_token = trf_config.beg_token
         noise_config.end_token = trf_config.end_token
         noise_config.vocab_size = trf_config.vocab_size
         noise_config.pi_true = self.len_prob
+
+        ngramlm = ngram.Ngram(trf_config.sampler_config.order, trf_config.sampler_config.vocab_size)
+        ngramlm.create_from_corpus(data_reduce_vocab(data.datas[0], trf_config.sampler_config.vocab_size))
+
         self.noise_sampler = noise.NoiseSamplerNgram(noise_config, data,
                                                      trf_config.sampler_config.order,
-                                                     is_parallel=False)
+                                                     is_parallel=True,
+                                                     input_ngram=ngramlm)
 
     def initialize(self):
         self.noise_sampler.start()

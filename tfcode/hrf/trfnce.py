@@ -58,7 +58,7 @@ class Config(crf.Config):
         self.update_aux_using_samples = False
 
         # learning rate
-        self.lr_word = lr.LearningRateTime(1.0, 1.0, tc=1e4)
+        self.lr_word = lr.LearningRateTime(1e-3)
         self.lr_logz = lr.LearningRateTime(1.0, 0.2)
         self.opt_word = 'adam'
         self.opt_logz = 'sgd'

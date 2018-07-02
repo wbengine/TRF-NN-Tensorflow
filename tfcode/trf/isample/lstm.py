@@ -165,13 +165,95 @@ class Net(object):
         return final_logps
 
 
-class Model(object):
-    def __init__(self, config, name='seq_lstmlm', device='/gpu:0'):
-        with tf.device(device):
-            self.train_net = Net(config, is_training=True, name=name, reuse=None)
-            self.eval_net = Net(config, is_training=False, name=name, reuse=True)
+# parallize the sampling
+class NetEval(object):
+    def __init__(self, config, name='lstm_net', devices=['/gpu:0', '/gpu:1']):
+        self.device_num = len(devices)
 
-            self.saver = tf.train.Saver(self.train_net.vars)
+        self.nets = []
+        for device in devices:
+            with tf.device(device):
+                self.nets.append(Net(config, is_training=False, name=name, reuse=True))
+
+        with tf.device(devices[0]):
+            draw_w_list = [net.softmax.draw[0] for net in self.nets]
+            draw_logp_list = [net.softmax.draw[1] for net in self.nets]
+            self.draw_w = tf.concat(draw_w_list, axis=0)
+            self.draw_logp = tf.concat(draw_logp_list, axis=0)
+
+            loss_list = [net.loss_for_sequence for net in self.nets]
+            self.loss_for_sequence = tf.concat(loss_list, axis=0)
+
+    def split_data(self, a):
+        n = len(a)
+        k = n // self.device_num
+
+        res = []
+        for i in range(self.device_num):
+            if i == self.device_num - 1:
+                res.append(a[k * i: ])
+            else:
+                res.append(a[k * i: k * (i+1)])
+        return res
+
+    def run_loss(self, session, inputs, targets, lengths):
+
+        feed_dict = {}
+        for net, i, t, l in zip(self.nets, self.split_data(inputs), self.split_data(targets), self.split_data(lengths)):
+            feed_dict[net._inputs] = i
+            feed_dict[net._targets] = t
+            feed_dict[net._lengths] = l
+
+        return session.run(self.loss_for_sequence, feed_dict)
+
+    def run_draws(self, session, inputs, max_sample_num, end_id=None):
+        feed_dict = {}
+        for net, i in zip(self.nets, self.split_data(inputs)):
+            feed_dict[net._inputs] = i[:, 0:-1]
+
+        # get states ( a list of state )
+        states = session.run([net.final_state for net in self.nets], feed_dict)
+
+        final_outputs = np.array(inputs)
+        final_lengths = np.ones(inputs.shape[0], dtype='int32') * inputs.shape[1]
+        final_logps = np.zeros_like(inputs)
+        is_tail = np.array([False] * len(inputs))
+        for i in range(max_sample_num):
+            feed_dict = {}
+            for net, st, i in zip(self.nets, states, self.split_data(final_outputs[:, -1:])):
+                feed_dict[net._inputs] = i
+                feed_dict[net._initial_state] = st
+
+            draw_w, draw_logp, states = session.run([self.draw_w,
+                                                     self.draw_logp,
+                                                     [net.final_state for net in self.nets]
+                                                     ], feed_dict)
+
+            final_outputs = np.concatenate([final_outputs, draw_w], axis=-1)
+            final_lengths += np.where(is_tail, 0, 1)
+            final_logps = np.concatenate([final_logps, draw_logp], axis=-1)
+
+            if end_id is not None:
+                is_tail = np.logical_or(is_tail, np.reshape(draw_w, [-1]) == end_id)
+                if np.all(is_tail):
+                    break
+
+        return final_outputs, final_lengths, final_logps
+
+
+class Model(object):
+    def __init__(self, config, name='seq_lstmlm', devices='/gpu:0'):
+
+        if isinstance(devices, str):
+            with tf.device(devices):
+                self.train_net = Net(config, is_training=True, name=name, reuse=None)
+                self.eval_net = Net(config, is_training=False, name=name, reuse=True)
+        else:
+            with tf.device(devices[0]):
+                self.train_net = Net(config, is_training=True, name=name, reuse=None)
+            self.eval_net = NetEval(config, name=name, devices=devices)
+
+        self.saver = tf.train.Saver(self.train_net.vars)
 
     def update(self, session, seq_list, seq_scales, learning_rate=None):
         inputs, lengths = reader.produce_data_to_array(seq_list)
@@ -179,7 +261,11 @@ class Model(object):
                                   inputs[:, 0:-1], inputs[:, 1:], lengths-1, seq_scales,
                                   learning_rate)
 
-    def get_log_probs(self, session, seq_list, max_batch_size=100):
+    def get_log_probs(self, session, seq_list, max_batch_size=None):
+
+        if max_batch_size is None:
+            max_batch_size = len(seq_list)
+
         logps = np.zeros(len(seq_list))
         for i in range(0, len(seq_list), max_batch_size):
             j = i + max_batch_size

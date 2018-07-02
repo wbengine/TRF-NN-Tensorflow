@@ -11,4 +11,5 @@ mv Makefile Makefile.sv
 cat Makefile.sv | sed "/SRILM =/i\SRILM = $(pwd)/" > Makefile
 make World MAKE_PIC=-fPIC > build_srilm.log 2>&1
 cp $(find bin -name ngram-count) . --force
+cp $(find bin -name ngram-merge) . --force
 cp $(find bin -name ngram) . --force

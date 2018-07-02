@@ -9,17 +9,19 @@ from . import sampler
 class Config(trf.Config):
     def __init__(self, data):
         super().__init__(data)
-        self.noise_sampler = '1gram'
+        self.noise_sampler = None
         self.word_average = False
         self.pi_0 = self.pi_true
 
-        self.sampler_config = sampler.LSTM.Config(self.vocab_size, 200, 1)
+        self.sampler_config = sampler.LSTMLen.Config(self.vocab_size, 200, 1)
         self.sampler_config.learning_rate = 0.1
         self.load_sampler = None
         self.fix_sampler = False
         self.lr_sampler = lr.LearningRateTime(1.0)
 
         self.add_sampler_as_prior = False
+
+        self.train_add_noise = False
 
     def __str__(self):
         s = 'trf_nce_noise{}_data{}'.format(self.noise_factor, self.data_factor)
@@ -42,12 +44,13 @@ class Config(trf.Config):
 class TRF(trf.TRF):
     def __init__(self, config, data, logdir,
                  device='/gpu:0', name='trf'):
-        super().__init__(config, data, logdir, device, name)
 
-        if isinstance(config.sampler_config, sampler.LSTMLen.Config):
-            self.sampler = sampler.LSTMLen(config, device)
-        elif isinstance(config.sampler_config, sampler.LSTM.Config):
-            self.sampler = sampler.LSTM(config, device)
+        if isinstance(device, str):
+            device = [device]
+
+        super().__init__(config, data, logdir, device[0], name)
+
+        self.sampler = sampler.create_sampler(config, data=data, device=device, limit_vocab=config.sampler_config.vocab_size)
 
         self.sampler.len_prob = config.pi_0
         self.sampler.update_len_prob = False
@@ -120,6 +123,20 @@ class TRF(trf.TRF):
 
         return logp_m
 
+    def train_add_noise(self, data_seqs, sample_seqs):
+
+        res_data = []
+        for s in data_seqs:
+            noise = sample_seqs[np.random.randint(len(sample_seqs))]
+            i = np.random.randint(len(s))
+            n = min(len(s) - i, np.random.randint(len(noise)))
+
+            new_s = list(s)
+            new_s[i: i+n] = noise[0: n]
+            res_data.append(new_s)
+
+        return res_data
+
     def update(self, data_list):
 
         # self.sampler.update(data_list, np.ones(len(data_list)) / len(data_list))
@@ -128,14 +145,22 @@ class TRF(trf.TRF):
 
         # generate noise samples
         with self.time_recoder.recode('sampling'):
-            data_list = data_list + self.sampler.generate(int(self.config.data_factor * len(data_list)))
-            # data_list = self.sampler.add_noise(data_list)
-            sample_list = self.sampler.generate(len(data_list) * self.config.noise_factor)
 
-            seq_list = data_list + sample_list
+            k = len(data_list)
+            k1 = int(len(data_list) * self.config.data_factor)
+            k2 = int((k + k1) * self.config.noise_factor)
+
+            sample_all = self.sampler.generate(k1 + k2)
+            data_all = self.train_add_noise(data_list, sample_all) if self.config.train_add_noise else data_list
+
+            # the data list and sample list for NCE
+            nce_data_list = data_all + sample_all[0: k1]
+            nce_sample_list = sample_all[k1:]
+
+            seq_list = nce_data_list + nce_sample_list
             assert np.min([len(x) for x in seq_list]) >= self.config.min_len
             noise_logps = self.sampler.get_log_probs(seq_list)
-            data_num = len(data_list)
+            data_num = len(nce_data_list)
             seq_lens = [len(x) for x in seq_list]
 
         with self.time_recoder.recode('loss'):
@@ -161,19 +186,20 @@ class TRF(trf.TRF):
         # update_aux_scale = np.ones(len(seq_list))
         with self.time_recoder.recode('update_aux'):
             if not self.config.fix_sampler:
-                update_aux_scale = self.update_aux(seq_list, model_logps, noise_logps, src_data_num)
-            else:
-                update_aux_scale = np.ones(len(seq_list))
-            sampler_ll = self.sampler.eval_nll(data_list[0: src_data_num])
+                # update_aux_scale = self.update_aux(seq_list, model_logps, noise_logps, len(data_list))
+                self.sampler.update(data_list, np.ones(len(data_list)) / len(data_list))
+            # else:
+            #     update_aux_scale = np.ones(len(seq_list))
+            sampler_ll = self.sampler.eval_nll(data_list)
 
         if self.config.write_dbg:
             f = self.write_files.get('noise')
             f.write('step={}\n'.format(self.training_info['trained_step']))
             f.write('[d/s] [model_logp] [noise_logp] [cluster_w] [cluster_p] [ scale ] [ seq ]\n')
             for i, s in enumerate(seq_list):
-                f.write('{:>5} {:<12.5f} {:<12.5f} {:<12.5f} {:<8.5f} {:<8.5f}'.format(
+                f.write('{:>5} {:<12.5f} {:<12.5f} {:<12.5f} {:<8.5f} '.format(
                     'd' if i < len(data_list) else 's',
-                    model_logps[i], noise_logps[i], cluster_weights[i], np.exp(-loss_all[i]), update_aux_scale[i]))
+                    model_logps[i], noise_logps[i], cluster_weights[i], np.exp(-loss_all[i])))
                 f.write('[' + ' '.join(str(w) for w in s) + ']\n')
             f.flush()
 
@@ -193,11 +219,11 @@ class TRF(trf.TRF):
         # print_infos['nce_logz0'] = self.norm_const.get_logz(self.config.min_len)
 
         self.sampler_nll.append(sampler_ll)
-        self.sampler_kl.append(np.mean(model_logps[src_data_num:] - noise_logps[src_data_num:]))
+        # self.sampler_kl.append(np.mean(model_logps[src_data_num:] - noise_logps[src_data_num:]))
         print_infos['lr_sampler'] = self.cur_lr_sampler
         print_infos['aux_nll'] = np.mean(self.sampler_nll[-100:])
-        print_infos['kl'] = np.mean(self.sampler_kl[-100:])
-        print_infos['ESR'] = np.sum(update_aux_scale >= 1e-4) / len(update_aux_scale)
+        # print_infos['kl'] = np.mean(self.sampler_kl[-100:])
+        # print_infos['ESR'] = np.sum(update_aux_scale >= 1e-4) / len(update_aux_scale)
         return loss, print_infos
 
     def update_lr(self, step, epoch):

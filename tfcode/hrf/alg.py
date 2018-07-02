@@ -1,6 +1,9 @@
 import numpy as np
+import tensorflow as tf
+
 from scipy.misc import logsumexp
 from base import *
+from semi import alg as alg_tf
 
 LOG_ZERO = -1e16
 
@@ -214,3 +217,48 @@ def logps_list_unfold(logps_array, lengths):
         logps_list.append(logps[0:n])
     return logps_list
 
+
+# class ForwardBackward_tf(ForwardBackward):
+#     def __init__(self, trans_mat, trans_mat_last, emiss_mat, beg_idxs=None, end_idxs=None):
+#         assert np.all(trans_mat == trans_mat_last)
+
+def decode(trans_mats, beg_idxs, end_idxs):
+    """
+    Args:
+        trans_mats: np.array, [length-1, node_size, node_size]
+        beg_idxs: list
+        end_idxs: list
+
+    Returns:
+
+    """
+    node_num = trans_mats.shape[0] + 1
+    node_size = trans_mats.shape[1]
+    # mask
+    beg_mask = np.zeros(node_size, dtype='bool')
+    end_mask = np.zeros(node_size, dtype='bool')
+    beg_mask[beg_idxs] = True
+    end_mask[end_idxs] = True
+
+    optimal_perv = np.ones([node_num, node_size], dtype='int32') * (-1)
+
+    m = np.where(beg_mask, 0, LOG_ZERO)
+    for i in range(node_num - 1):  # forward max_time-1 times
+        a = trans_mats[i]
+
+        weight = np.reshape(m, [-1, 1]) + a
+        opt_i = np.argmax(weight, axis=0)
+
+        optimal_perv[i + 1] = opt_i
+        m = weight[opt_i, np.arange(0, node_size)]
+
+    m = np.where(end_mask, m, LOG_ZERO)
+    opt_i = np.argmax(m)
+    opt_w = m[opt_i]
+
+    opt_tags = [0] * node_num
+    for t in reversed(range(0, node_num)):
+        opt_tags[t] = opt_i
+        opt_i = optimal_perv[t][opt_i]
+
+    return opt_tags, opt_w

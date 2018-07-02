@@ -1,0 +1,19 @@
+.././data/train
+line=197,391
+word=1,333,719
+vocab=28,440
+minlen=1
+maxlen=41
+------------------ 
+
+.././data/dev
+line=5,413
+word=37,841
+vocab=5,069
+minlen=1
+maxlen=35
+oov_words=326
+oov_num=473
+oov_rate=1.25%
+------------------ 
+utterance num: 5413

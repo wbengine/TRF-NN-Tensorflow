@@ -253,6 +253,10 @@ class clock:
     def items(self):
         return sorted(self.time_recoder.items(), key=lambda x: x[0])
 
+    def merge(self, clock_variables):
+        # add the time_recoder in the given clock into the current clock
+        self.time_recoder.update(clock_variables.time_recoder)
+
 
 class std_log:
     """output text to log file and console"""
@@ -646,6 +650,13 @@ def WriteScore(fname, s, label=[]):
                 f.write('{}\t{}\n'.format(label[i], s[i]))
 
 
+# cmp interpolate
+def ScoreInterpolate(s1, s2, w):
+    s1 = LoadScore(s1) if isinstance(s1, str) else s1
+    s2 = LoadScore(s2) if isinstance(s2, str) else s2
+    return w * s1 + (1-w) * s2
+
+
 # tune the lmscale and acscale to get the best WER
 def TuneWER(nbest, temp, lmscore, acscore, lmscale, acscale=[1]):
     opt_wer = 100
@@ -933,6 +944,11 @@ class ArrayUpdate:
     Update methods support Adam, Gradient Descent.
     """
     def __init__(self, params, opt_config):
+        """
+        Args:
+            params: int or np.array, the params or the size of the params
+            opt_config: such as {'name': 'adam', 'max_norm': 10, 'clip': 10}
+        """
         self.opt_config = dict(opt_config)
         self.opt_name = self.opt_config.setdefault('name', 'adam')
 
@@ -1169,6 +1185,8 @@ def split_to_char_ch(s, keep_en_words=True):
 
 
 def generate_pos(word_len):
+    if word_len == 0:
+        return []
     if word_len == 1:
         return ['s']
     return ['b'] + ['m'] * (word_len-2) + ['e']
