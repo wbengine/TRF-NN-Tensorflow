@@ -12,7 +12,7 @@ TRFs are compared with CRFs in POS tagging task, and compared with ngram/LSTM in
 
 ### Scripts
 
-full/
+``full/``
 
 |scripts         |description                         |
 |----------------|------------------------------------|
@@ -27,7 +27,7 @@ full/
 |run_crf_neural2.py  | run neural CRF, a better realization than `run_crf_neural.py` |
 |run_hrf_\*.py | the old version of training TRFs. The new scripts are in `semi/` |
 
-semi/
+``semi/`` (Important)
 
 |scripts         |description                         |
 |----------------|------------------------------------|
