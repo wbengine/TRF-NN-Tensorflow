@@ -14,7 +14,7 @@ from base import reader
 from base import vocab
 from base import sampling as sp
 from base import word2vec
-from base import trie
+# from base import trie
 from base import learningrate as lr
 from base import log
 from base import seq
